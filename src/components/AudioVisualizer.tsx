@@ -3,6 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { EqualizerPreset } from '@/utils/presets';
+import { BeatDetector } from '@/utils/beatDetection';
+import { ParticleSystem } from './ParticleSystem';
 
 interface AudioVisualizerProps {
   analyser: AnalyserNode | null;
@@ -22,8 +24,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
+  const beatDetectorRef = useRef<BeatDetector | null>(null);
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
+  const [beatIntensity, setBeatIntensity] = useState(0);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -57,6 +62,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
+    // Initialize beat detector
+    if (!beatDetectorRef.current) {
+      beatDetectorRef.current = new BeatDetector(analyser);
+    }
+
     const draw = () => {
       if (!isPlaying) {
         // Draw static visualization when not playing
@@ -67,18 +77,37 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       analyser.getByteFrequencyData(dataArray);
       setFrequencyData(dataArray);
 
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+      // Beat detection
+      const currentBeatData = beatDetectorRef.current!.detectBeat();
+      setBeatData(currentBeatData);
+
+      // Beat intensity effect
+      if (currentBeatData.isBeat) {
+        setBeatIntensity(1);
+      } else {
+        setBeatIntensity(prev => Math.max(0, prev - 0.05));
+      }
+
+      // Dynamic background based on beat
+      const bgAlpha = currentBeatData.isBeat ? 0.1 : 0.2;
+      ctx.fillStyle = `rgba(0, 0, 0, ${bgAlpha})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Add beat flash effect
+      if (beatIntensity > 0) {
+        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 50).toString(16).padStart(2, '0')}`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
 
       switch (mode) {
         case 'bars':
-          drawBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
+          drawBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
         case 'wave':
-          drawWave(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
+          drawWave(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
         case 'circular':
-          drawCircular(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
+          drawCircular(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
       }
 
@@ -128,18 +157,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
+  const drawBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
     const barWidth = width / dataArray.length * 2.5;
     let x = 0;
 
     for (let i = 0; i < dataArray.length; i++) {
       const barHeight = (dataArray[i] * sensitivity * height) / 256;
+      const beatBoost = beatData.isBeat ? 1.2 : 1;
+      const finalHeight = barHeight * beatBoost;
       
       // Special rainbow effect for rainbow-spectrum preset
       if (preset.id === 'rainbow-spectrum') {
         const hue = (i / dataArray.length) * 360;
         const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
         gradient.addColorStop(0, `hsl(${hue}, 100%, ${intensity * 50 + 30}%)`);
         gradient.addColorStop(0.5, `hsl(${(hue + 60) % 360}, 100%, ${intensity * 40 + 40}%)`);
         gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 60 + 20}%)`);
@@ -147,20 +178,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       } else {
         // Use preset colors for other presets
         const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
         gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
         gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
         gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
         ctx.fillStyle = gradient;
       }
       
-      ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
+      ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
       
-      // Add glow effect for high frequencies
-      if (dataArray[i] > 200) {
+      // Enhanced glow effect for beats
+      if (dataArray[i] > 200 || beatData.isBeat) {
         ctx.shadowColor = preset.id === 'rainbow-spectrum' ? `hsl(${(i / dataArray.length) * 360}, 100%, 70%)` : preset.color.glow;
-        ctx.shadowBlur = 20;
-        ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
+        ctx.shadowBlur = beatData.isBeat ? 30 : 20;
+        ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
         ctx.shadowBlur = 0;
       }
       
@@ -168,8 +199,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     }
   };
 
-  const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
-    ctx.lineWidth = 3;
+  const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
+    const lineWidth = beatData.isBeat ? 5 : 3;
+    ctx.lineWidth = lineWidth;
     
     // Special rainbow effect for rainbow-spectrum preset
     if (preset.id === 'rainbow-spectrum') {
@@ -189,7 +221,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
     for (let i = 0; i < dataArray.length; i++) {
       const v = (dataArray[i] * sensitivity) / 128.0;
-      const y = (v * height) / 2;
+      const beatBoost = beatData.isBeat ? 1.3 : 1;
+      const y = (v * height * beatBoost) / 2;
 
       if (i === 0) {
         ctx.moveTo(x, y);
@@ -202,14 +235,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
     ctx.stroke();
     
-    // Add glow effect with preset colors
+    // Enhanced glow effect
     ctx.shadowColor = preset.id === 'rainbow-spectrum' ? '#ff4000' : preset.color.glow;
-    ctx.shadowBlur = 15;
+    ctx.shadowBlur = beatData.isBeat ? 25 : 15;
     ctx.stroke();
     ctx.shadowBlur = 0;
   };
 
-  const drawCircular = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
+  const drawCircular = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.min(width, height) / 4;
@@ -217,11 +250,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     for (let i = 0; i < dataArray.length; i++) {
       const angle = (i / dataArray.length) * Math.PI * 2;
       const barHeight = (dataArray[i] * sensitivity) / 2;
+      const beatBoost = beatData.isBeat ? 1.4 : 1;
+      const finalHeight = barHeight * beatBoost;
       
       const x1 = centerX + Math.cos(angle) * radius;
       const y1 = centerY + Math.sin(angle) * radius;
-      const x2 = centerX + Math.cos(angle) * (radius + barHeight);
-      const y2 = centerY + Math.sin(angle) * (radius + barHeight);
+      const x2 = centerX + Math.cos(angle) * (radius + finalHeight);
+      const y2 = centerY + Math.sin(angle) * (radius + finalHeight);
 
       // Special rainbow effect for rainbow-spectrum preset
       if (preset.id === 'rainbow-spectrum') {
@@ -234,7 +269,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         ctx.strokeStyle = `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`;
       }
       
-      ctx.lineWidth = 2;
+      ctx.lineWidth = beatData.isBeat ? 3 : 2;
       
       ctx.beginPath();
       ctx.moveTo(x1, y1);
@@ -242,12 +277,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       ctx.stroke();
     }
     
-    // Draw center circle with preset colors
+    // Enhanced center circle with beat effect
     ctx.beginPath();
-    ctx.arc(centerX, centerY, radius * 0.1, 0, Math.PI * 2);
+    const centerRadius = radius * (beatData.isBeat ? 0.15 : 0.1);
+    ctx.arc(centerX, centerY, centerRadius, 0, Math.PI * 2);
     ctx.fillStyle = preset.id === 'rainbow-spectrum' ? '#ff0080' : preset.color.primary;
     ctx.shadowColor = preset.id === 'rainbow-spectrum' ? '#ff4000' : preset.color.glow;
-    ctx.shadowBlur = 10;
+    ctx.shadowBlur = beatData.isBeat ? 20 : 10;
     ctx.fill();
     ctx.shadowBlur = 0;
   };
@@ -272,16 +308,30 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         )}
       </Button>
       
-      <canvas
-        ref={canvasRef}
-        className={`w-full bg-black rounded-lg border border-gray-600 transition-all duration-500 ${
-          isFullscreen ? 'h-screen' : 'h-96'
-        }`}
-        style={{ 
-          imageRendering: 'pixelated',
-          boxShadow: `0 0 30px ${preset.color.glow}20`
-        }}
-      />
+      <div className="relative">
+        <canvas
+          ref={canvasRef}
+          className={`w-full bg-black rounded-lg border border-gray-600 transition-all duration-500 ${
+            isFullscreen ? 'h-screen' : 'h-96'
+          }`}
+          style={{ 
+            imageRendering: 'pixelated',
+            boxShadow: `0 0 30px ${preset.color.glow}20`
+          }}
+        />
+        
+        {/* Particle System */}
+        {isPlaying && (
+          <ParticleSystem
+            bassEnergy={beatData.bassEnergy}
+            trebleEnergy={beatData.trebleEnergy}
+            isBeat={beatData.isBeat}
+            preset={preset}
+            width={canvasRef.current?.offsetWidth || 0}
+            height={canvasRef.current?.offsetHeight || 0}
+          />
+        )}
+      </div>
     </Card>
   );
 };

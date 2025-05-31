@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { AudioVisualizer } from './AudioVisualizer';
 import { PresetDisplay } from './PresetDisplay';
 import { VolumeControls } from './VolumeControls';
+import { MobileControls } from './MobileControls';
 import { Play, Pause, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -87,6 +87,19 @@ export const MusicEqualizer = () => {
     } else {
       initializeAudio();
     }
+  };
+
+  const handlePresetChange = (direction: 'next' | 'prev') => {
+    const newPreset = direction === 'next' 
+      ? getNextPreset(currentPreset.id)
+      : getPreviousPreset(currentPreset.id);
+    setCurrentPreset(newPreset);
+    toast.success(`Switched to ${newPreset.name}`);
+  };
+
+  const handleFullscreen = () => {
+    // This will be handled by the AudioVisualizer component
+    toast.info("Use the fullscreen button on the visualizer");
   };
 
   useEffect(() => {
@@ -181,6 +194,15 @@ export const MusicEqualizer = () => {
           <span>Standalone DJ Equalizer • Ready to Use</span>
         </div>
       </div>
+
+      {/* Mobile Controls */}
+      <MobileControls
+        currentPreset={currentPreset}
+        onPresetChange={handlePresetChange}
+        onFullscreen={handleFullscreen}
+        sensitivity={sensitivity}
+        onSensitivityChange={setSensitivity}
+      />
     </div>
   );
 };
