@@ -1,6 +1,7 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Maximize2, Minimize2 } from 'lucide-react';
 import { EqualizerPreset } from '@/utils/presets';
 
 interface AudioVisualizerProps {
@@ -19,8 +20,34 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   preset
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.error('Fullscreen toggle failed:', error);
+    }
+  };
 
   useEffect(() => {
     if (!analyser || !canvasRef.current) return;
@@ -196,10 +223,30 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   };
 
   return (
-    <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-700 p-6">
+    <Card 
+      ref={containerRef}
+      className={`bg-gray-900/50 backdrop-blur-sm border-gray-700 p-6 relative ${
+        isFullscreen ? 'fixed inset-0 z-50 rounded-none' : ''
+      }`}
+    >
+      <Button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-4 z-10 bg-gray-800/80 hover:bg-gray-700/80 text-white border-gray-600"
+        size="sm"
+        variant="outline"
+      >
+        {isFullscreen ? (
+          <Minimize2 className="w-4 h-4" />
+        ) : (
+          <Maximize2 className="w-4 h-4" />
+        )}
+      </Button>
+      
       <canvas
         ref={canvasRef}
-        className="w-full h-96 bg-black rounded-lg border border-gray-600 transition-all duration-500"
+        className={`w-full bg-black rounded-lg border border-gray-600 transition-all duration-500 ${
+          isFullscreen ? 'h-screen' : 'h-96'
+        }`}
         style={{ 
           imageRendering: 'pixelated',
           boxShadow: `0 0 30px ${preset.color.glow}20`

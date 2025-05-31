@@ -26,25 +26,25 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
     visualMode: 'bars'
   },
   {
-    id: 'retro-wave',
-    name: 'RETRO WAVE',
-    description: 'Vintage analog warmth',
+    id: 'electric-dreams',
+    name: 'ELECTRIC DREAMS',
+    description: 'Neon blue electric energy',
     bands: [0.6, 0.7, 0.8, 0.9, 0.8, 0.7, 0.6, 0.5],
     color: {
-      primary: '#ffaa00',
-      secondary: '#ff4500',
-      glow: '#ffaa00'
+      primary: '#0080ff',
+      secondary: '#00e6ff',
+      glow: '#0080ff'
     },
     visualMode: 'wave'
   },
   {
-    id: 'cyber-pulse',
-    name: 'CYBER PULSE',
-    description: 'Futuristic digital energy',
+    id: 'laser-grid',
+    name: 'LASER GRID',
+    description: 'Green matrix digital vibes',
     bands: [0.9, 0.8, 0.6, 0.7, 0.9, 0.8, 0.7, 0.8],
     color: {
       primary: '#00ff41',
-      secondary: '#00ffaa',
+      secondary: '#39ff14',
       glow: '#00ff41'
     },
     visualMode: 'circular'
