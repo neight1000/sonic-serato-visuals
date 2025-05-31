@@ -1,19 +1,22 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { EqualizerPreset } from '@/utils/presets';
 
 interface AudioVisualizerProps {
   analyser: AnalyserNode | null;
   isPlaying: boolean;
   mode: 'bars' | 'wave' | 'circular';
   sensitivity: number;
+  preset: EqualizerPreset;
 }
 
 export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   analyser,
   isPlaying,
   mode,
-  sensitivity
+  sensitivity,
+  preset
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
@@ -30,7 +33,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const draw = () => {
       if (!isPlaying) {
         // Draw static visualization when not playing
-        drawStaticVisualization(ctx, canvas.width, canvas.height);
+        drawStaticVisualization(ctx, canvas.width, canvas.height, preset);
         return;
       }
 
@@ -42,13 +45,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
       switch (mode) {
         case 'bars':
-          drawBars(ctx, dataArray, canvas.width, canvas.height, sensitivity);
+          drawBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
           break;
         case 'wave':
-          drawWave(ctx, dataArray, canvas.width, canvas.height, sensitivity);
+          drawWave(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
           break;
         case 'circular':
-          drawCircular(ctx, dataArray, canvas.width, canvas.height, sensitivity);
+          drawCircular(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset);
           break;
       }
 
@@ -71,13 +74,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       }
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [analyser, isPlaying, mode, sensitivity]);
+  }, [analyser, isPlaying, mode, sensitivity, preset]);
 
-  const drawStaticVisualization = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+  const drawStaticVisualization = (ctx: CanvasRenderingContext2D, width: number, height: number, preset: EqualizerPreset) => {
     ctx.clearRect(0, 0, width, height);
     
-    // Draw grid
-    ctx.strokeStyle = 'rgba(64, 224, 208, 0.2)';
+    // Draw grid with preset colors
+    ctx.strokeStyle = `${preset.color.primary}40`;
     ctx.lineWidth = 1;
     
     for (let i = 0; i < 10; i++) {
@@ -88,35 +91,36 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       ctx.stroke();
     }
     
-    // Draw center text
-    ctx.fillStyle = 'rgba(64, 224, 208, 0.6)';
+    // Draw center text with preset colors
+    ctx.fillStyle = preset.color.primary;
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
+    ctx.shadowColor = preset.color.glow;
+    ctx.shadowBlur = 10;
     ctx.fillText('READY TO VISUALIZE', width / 2, height / 2);
+    ctx.shadowBlur = 0;
   };
 
-  const drawBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
+  const drawBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
     const barWidth = width / dataArray.length * 2.5;
     let x = 0;
 
     for (let i = 0; i < dataArray.length; i++) {
       const barHeight = (dataArray[i] * sensitivity * height) / 256;
       
-      const hue = (i / dataArray.length) * 360;
+      // Use preset colors
       const intensity = dataArray[i] / 256;
-      
-      // Create gradient for each bar
       const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-      gradient.addColorStop(0, `hsla(${hue}, 100%, 50%, ${intensity})`);
-      gradient.addColorStop(0.5, `hsla(${hue + 30}, 100%, 60%, ${intensity * 0.8})`);
-      gradient.addColorStop(1, `hsla(${hue + 60}, 100%, 70%, ${intensity * 0.6})`);
+      gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
+      gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
+      gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
       
       ctx.fillStyle = gradient;
       ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
       
       // Add glow effect for high frequencies
       if (dataArray[i] > 200) {
-        ctx.shadowColor = `hsl(${hue}, 100%, 50%)`;
+        ctx.shadowColor = preset.color.glow;
         ctx.shadowBlur = 20;
         ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
         ctx.shadowBlur = 0;
@@ -126,9 +130,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     }
   };
 
-  const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
+  const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
     ctx.lineWidth = 3;
-    ctx.strokeStyle = '#40E0D0';
+    ctx.strokeStyle = preset.color.primary;
     ctx.beginPath();
 
     const sliceWidth = width / dataArray.length;
@@ -149,14 +153,14 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
     ctx.stroke();
     
-    // Add glow effect
-    ctx.shadowColor = '#40E0D0';
-    ctx.shadowBlur = 10;
+    // Add glow effect with preset colors
+    ctx.shadowColor = preset.color.glow;
+    ctx.shadowBlur = 15;
     ctx.stroke();
     ctx.shadowBlur = 0;
   };
 
-  const drawCircular = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
+  const drawCircular = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
     const centerX = width / 2;
     const centerY = height / 2;
     const radius = Math.min(width, height) / 4;
@@ -170,8 +174,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const x2 = centerX + Math.cos(angle) * (radius + barHeight);
       const y2 = centerY + Math.sin(angle) * (radius + barHeight);
 
-      const hue = (i / dataArray.length) * 360;
-      ctx.strokeStyle = `hsl(${hue}, 100%, 50%)`;
+      // Use preset colors for circular visualization
+      const intensity = dataArray[i] / 256;
+      ctx.strokeStyle = `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`;
       ctx.lineWidth = 2;
       
       ctx.beginPath();
@@ -180,19 +185,25 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       ctx.stroke();
     }
     
-    // Draw center circle
+    // Draw center circle with preset colors
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.1, 0, Math.PI * 2);
-    ctx.fillStyle = '#40E0D0';
+    ctx.fillStyle = preset.color.primary;
+    ctx.shadowColor = preset.color.glow;
+    ctx.shadowBlur = 10;
     ctx.fill();
+    ctx.shadowBlur = 0;
   };
 
   return (
     <Card className="bg-gray-900/50 backdrop-blur-sm border-gray-700 p-6">
       <canvas
         ref={canvasRef}
-        className="w-full h-96 bg-black rounded-lg border border-gray-600"
-        style={{ imageRendering: 'pixelated' }}
+        className="w-full h-96 bg-black rounded-lg border border-gray-600 transition-all duration-500"
+        style={{ 
+          imageRendering: 'pixelated',
+          boxShadow: `0 0 30px ${preset.color.glow}20`
+        }}
       />
     </Card>
   );

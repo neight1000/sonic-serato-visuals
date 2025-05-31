@@ -1,20 +1,41 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { AudioVisualizer } from './AudioVisualizer';
-import { EqualizerControls } from './EqualizerControls';
+import { PresetDisplay } from './PresetDisplay';
 import { VolumeControls } from './VolumeControls';
-import { Settings, Play, Pause, Volume2 } from 'lucide-react';
+import { Play, Pause, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { EQUALIZER_PRESETS, getNextPreset, getPreviousPreset, EqualizerPreset } from '@/utils/presets';
 
 export const MusicEqualizer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   const [mediaSource, setMediaSource] = useState<MediaStreamAudioSourceNode | null>(null);
-  const [visualizerMode, setVisualizerMode] = useState<'bars' | 'wave' | 'circular'>('bars');
   const [sensitivity, setSensitivity] = useState(1);
+  const [currentPreset, setCurrentPreset] = useState<EqualizerPreset>(EQUALIZER_PRESETS[0]);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  // Keyboard controls for presets
+  useEffect(() => {
+    const handleKeyPress = (event: KeyboardEvent) => {
+      if (event.code === 'ArrowRight') {
+        event.preventDefault();
+        const nextPreset = getNextPreset(currentPreset.id);
+        setCurrentPreset(nextPreset);
+        toast.success(`Switched to ${nextPreset.name}`);
+      } else if (event.code === 'ArrowLeft') {
+        event.preventDefault();
+        const prevPreset = getPreviousPreset(currentPreset.id);
+        setCurrentPreset(prevPreset);
+        toast.success(`Switched to ${prevPreset.name}`);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [currentPreset.id]);
 
   const initializeAudio = async () => {
     try {
@@ -77,11 +98,25 @@ export const MusicEqualizer = () => {
   }, [audioContext]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black text-white p-6">
+    <div 
+      className="min-h-screen text-white p-6 transition-all duration-500"
+      style={{
+        background: `linear-gradient(135deg, #000000 0%, #1a1a1a 50%, #000000 100%)`
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+          <h1 
+            className="text-4xl font-bold transition-all duration-500"
+            style={{
+              background: `linear-gradient(45deg, ${currentPreset.color.primary}, ${currentPreset.color.secondary})`,
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              textShadow: `0 0 20px ${currentPreset.color.glow}40`
+            }}
+          >
             DJ EQUALIZER PRO
           </h1>
           <p className="text-gray-400 mt-2">Professional Audio Spectrum Analyzer</p>
@@ -119,16 +154,14 @@ export const MusicEqualizer = () => {
           <AudioVisualizer 
             analyser={analyser}
             isPlaying={isPlaying}
-            mode={visualizerMode}
+            mode={currentPreset.visualMode}
             sensitivity={sensitivity}
+            preset={currentPreset}
           />
         </div>
         
         <div className="space-y-6">
-          <EqualizerControls 
-            mode={visualizerMode}
-            onModeChange={setVisualizerMode}
-          />
+          <PresetDisplay currentPreset={currentPreset} />
         </div>
       </div>
 
@@ -145,7 +178,7 @@ export const MusicEqualizer = () => {
         
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <Volume2 className="w-4 h-4" />
-          <span>Serato DJ Pro Compatible</span>
+          <span>Standalone DJ Equalizer • Ready to Use</span>
         </div>
       </div>
     </div>
