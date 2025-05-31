@@ -135,19 +135,30 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     for (let i = 0; i < dataArray.length; i++) {
       const barHeight = (dataArray[i] * sensitivity * height) / 256;
       
-      // Use preset colors
-      const intensity = dataArray[i] / 256;
-      const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
-      gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
-      gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
-      gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
+      // Special rainbow effect for rainbow-spectrum preset
+      if (preset.id === 'rainbow-spectrum') {
+        const hue = (i / dataArray.length) * 360;
+        const intensity = dataArray[i] / 256;
+        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        gradient.addColorStop(0, `hsl(${hue}, 100%, ${intensity * 50 + 30}%)`);
+        gradient.addColorStop(0.5, `hsl(${(hue + 60) % 360}, 100%, ${intensity * 40 + 40}%)`);
+        gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 60 + 20}%)`);
+        ctx.fillStyle = gradient;
+      } else {
+        // Use preset colors for other presets
+        const intensity = dataArray[i] / 256;
+        const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+        gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
+        gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
+        ctx.fillStyle = gradient;
+      }
       
-      ctx.fillStyle = gradient;
       ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
       
       // Add glow effect for high frequencies
       if (dataArray[i] > 200) {
-        ctx.shadowColor = preset.color.glow;
+        ctx.shadowColor = preset.id === 'rainbow-spectrum' ? `hsl(${(i / dataArray.length) * 360}, 100%, 70%)` : preset.color.glow;
         ctx.shadowBlur = 20;
         ctx.fillRect(x, height - barHeight, barWidth - 2, barHeight);
         ctx.shadowBlur = 0;
@@ -159,7 +170,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
   const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset) => {
     ctx.lineWidth = 3;
-    ctx.strokeStyle = preset.color.primary;
+    
+    // Special rainbow effect for rainbow-spectrum preset
+    if (preset.id === 'rainbow-spectrum') {
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      for (let i = 0; i < 7; i++) {
+        gradient.addColorStop(i / 6, `hsl(${i * 60}, 100%, 60%)`);
+      }
+      ctx.strokeStyle = gradient;
+    } else {
+      ctx.strokeStyle = preset.color.primary;
+    }
+    
     ctx.beginPath();
 
     const sliceWidth = width / dataArray.length;
@@ -181,7 +203,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.stroke();
     
     // Add glow effect with preset colors
-    ctx.shadowColor = preset.color.glow;
+    ctx.shadowColor = preset.id === 'rainbow-spectrum' ? '#ff4000' : preset.color.glow;
     ctx.shadowBlur = 15;
     ctx.stroke();
     ctx.shadowBlur = 0;
@@ -201,9 +223,17 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const x2 = centerX + Math.cos(angle) * (radius + barHeight);
       const y2 = centerY + Math.sin(angle) * (radius + barHeight);
 
-      // Use preset colors for circular visualization
-      const intensity = dataArray[i] / 256;
-      ctx.strokeStyle = `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`;
+      // Special rainbow effect for rainbow-spectrum preset
+      if (preset.id === 'rainbow-spectrum') {
+        const hue = (i / dataArray.length) * 360;
+        const intensity = dataArray[i] / 256;
+        ctx.strokeStyle = `hsl(${hue}, 100%, ${intensity * 40 + 40}%)`;
+      } else {
+        // Use preset colors for circular visualization
+        const intensity = dataArray[i] / 256;
+        ctx.strokeStyle = `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`;
+      }
+      
       ctx.lineWidth = 2;
       
       ctx.beginPath();
@@ -215,8 +245,8 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     // Draw center circle with preset colors
     ctx.beginPath();
     ctx.arc(centerX, centerY, radius * 0.1, 0, Math.PI * 2);
-    ctx.fillStyle = preset.color.primary;
-    ctx.shadowColor = preset.color.glow;
+    ctx.fillStyle = preset.id === 'rainbow-spectrum' ? '#ff0080' : preset.color.primary;
+    ctx.shadowColor = preset.id === 'rainbow-spectrum' ? '#ff4000' : preset.color.glow;
     ctx.shadowBlur = 10;
     ctx.fill();
     ctx.shadowBlur = 0;

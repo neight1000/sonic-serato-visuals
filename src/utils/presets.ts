@@ -38,14 +38,14 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
     visualMode: 'wave'
   },
   {
-    id: 'laser-grid',
-    name: 'LASER GRID',
-    description: 'Green matrix digital vibes',
-    bands: [0.9, 0.8, 0.6, 0.7, 0.9, 0.8, 0.7, 0.8],
+    id: 'rainbow-spectrum',
+    name: 'RAINBOW SPECTRUM',
+    description: 'Vintage 90s multicolor magic',
+    bands: [0.7, 0.9, 0.6, 0.8, 0.9, 0.7, 0.8, 0.6],
     color: {
-      primary: '#00ff41',
-      secondary: '#39ff14',
-      glow: '#00ff41'
+      primary: '#ff0080',
+      secondary: '#00ff80',
+      glow: '#ff4000'
     },
     visualMode: 'circular'
   }
