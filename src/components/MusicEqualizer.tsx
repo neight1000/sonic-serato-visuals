@@ -4,8 +4,11 @@ import { PresetDisplay } from './PresetDisplay';
 import { VolumeControls } from './VolumeControls';
 import { VirtualAudioSelector } from './VirtualAudioSelector';
 import { MobileControls } from './MobileControls';
-import { Play, Pause, Volume2, Zap } from 'lucide-react';
+import { Play, Pause, Volume2, Zap, Mic } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { EQUALIZER_PRESETS, getNextPreset, getPreviousPreset, EqualizerPreset } from '@/utils/presets';
 import { VirtualAudioRouter } from '@/utils/virtualAudioRouter';
@@ -18,6 +21,7 @@ export const MusicEqualizer = () => {
   const [sensitivity, setSensitivity] = useState(1);
   const [currentPreset, setCurrentPreset] = useState<EqualizerPreset>(EQUALIZER_PRESETS[0]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [useVirtualAudio, setUseVirtualAudio] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
   const routerRef = useRef<VirtualAudioRouter>(new VirtualAudioRouter());
 
@@ -45,12 +49,12 @@ export const MusicEqualizer = () => {
     try {
       let stream: MediaStream;
       
-      if (deviceId) {
+      if (useVirtualAudio && deviceId) {
         // Use virtual audio router for specific device
         stream = await routerRef.current.connectToVirtualDevice(deviceId);
         toast.success("Connected to virtual audio device!");
       } else {
-        // Fallback to default microphone
+        // Use default microphone input
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: false,
@@ -60,7 +64,7 @@ export const MusicEqualizer = () => {
             channelCount: 2
           } 
         });
-        toast.success("Connected to default audio input!");
+        toast.success("Connected to microphone input!");
       }
       
       const context = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -78,7 +82,7 @@ export const MusicEqualizer = () => {
       
     } catch (error) {
       console.error('Error accessing audio:', error);
-      toast.error("Could not access audio input. Check device permissions and virtual audio setup.");
+      toast.error("Could not access audio input. Check device permissions and setup.");
     }
   };
 
@@ -188,14 +192,46 @@ export const MusicEqualizer = () => {
         </div>
       </div>
 
-      {/* Audio Input Selector */}
-      <div className="mb-6">
-        <VirtualAudioSelector
-          onDeviceSelect={handleDeviceSelect}
-          currentDeviceId={selectedDeviceId}
-          isConnected={isPlaying}
-        />
-      </div>
+      {/* Audio Input Type Toggle */}
+      <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700 p-4 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <span className="text-sm font-medium text-gray-300">Input Type:</span>
+            <div className="flex items-center gap-3">
+              <Mic className={`w-4 h-4 ${!useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`} />
+              <span className={`text-sm ${!useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`}>
+                Microphone
+              </span>
+              <Switch
+                checked={useVirtualAudio}
+                onCheckedChange={setUseVirtualAudio}
+                className="data-[state=checked]:bg-blue-600"
+              />
+              <span className={`text-sm ${useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`}>
+                Virtual Audio
+              </span>
+              <Zap className={`w-4 h-4 ${useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`} />
+            </div>
+          </div>
+          
+          <Badge variant="secondary" className={`${
+            useVirtualAudio ? 'bg-blue-600/20 text-blue-300 border-blue-600/30' : 'bg-green-600/20 text-green-300 border-green-600/30'
+          }`}>
+            {useVirtualAudio ? 'Virtual Audio Mode' : 'Microphone Mode'}
+          </Badge>
+        </div>
+      </Card>
+
+      {/* Conditional Audio Input Selector */}
+      {useVirtualAudio && (
+        <div className="mb-6">
+          <VirtualAudioSelector
+            onDeviceSelect={handleDeviceSelect}
+            currentDeviceId={selectedDeviceId}
+            isConnected={isPlaying}
+          />
+        </div>
+      )}
 
       {/* Main Visualizer */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
@@ -203,7 +239,7 @@ export const MusicEqualizer = () => {
           <AudioVisualizer 
             analyser={analyser}
             isPlaying={isPlaying}
-            mode={currentPreset.visualMode}
+            mode="wave"
             sensitivity={sensitivity}
             preset={currentPreset}
           />
@@ -223,9 +259,14 @@ export const MusicEqualizer = () => {
           <span className="text-sm">
             {isPlaying ? 'LIVE AUDIO INPUT ACTIVE' : 'AUDIO INPUT DISCONNECTED'}
           </span>
-          {selectedDeviceId && (
+          {useVirtualAudio && selectedDeviceId && (
             <Badge variant="secondary" className="bg-blue-600/20 text-blue-300 border-blue-600/30">
               Virtual Audio
+            </Badge>
+          )}
+          {!useVirtualAudio && (
+            <Badge variant="secondary" className="bg-green-600/20 text-green-300 border-green-600/30">
+              Microphone
             </Badge>
           )}
         </div>

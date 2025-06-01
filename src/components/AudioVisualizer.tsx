@@ -29,6 +29,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
   const [beatIntensity, setBeatIntensity] = useState(0);
+  const waveHistoryRef = useRef<number[][]>([]);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -88,28 +89,18 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         setBeatIntensity(prev => Math.max(0, prev - 0.05));
       }
 
-      // Dynamic background based on beat
-      const bgAlpha = currentBeatData.isBeat ? 0.1 : 0.2;
-      ctx.fillStyle = `rgba(0, 0, 0, ${bgAlpha})`;
+      // Clear canvas with fade effect
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Add beat flash effect
       if (beatIntensity > 0) {
-        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 50).toString(16).padStart(2, '0')}`;
+        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 30).toString(16).padStart(2, '0')}`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      switch (mode) {
-        case 'bars':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
-        case 'wave':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
-        case 'circular':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
-      }
+      // Draw flowing waveforms
+      drawFlowingWaveforms(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
 
       animationRef.current = requestAnimationFrame(draw);
     };
@@ -135,19 +126,23 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const drawStaticVisualization = (ctx: CanvasRenderingContext2D, width: number, height: number, preset: EqualizerPreset) => {
     ctx.clearRect(0, 0, width, height);
     
-    // Draw grid with preset colors
+    // Draw flowing lines even when static
     ctx.strokeStyle = `${preset.color.primary}40`;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 2;
     
-    for (let i = 0; i < 10; i++) {
-      const y = (height / 10) * i;
+    for (let i = 0; i < 5; i++) {
       ctx.beginPath();
+      const y = height / 2 + Math.sin((Date.now() * 0.001) + i) * 20;
       ctx.moveTo(0, y);
-      ctx.lineTo(width, y);
+      
+      for (let x = 0; x < width; x += 10) {
+        const waveY = y + Math.sin((x * 0.01) + (Date.now() * 0.002) + i) * 15;
+        ctx.lineTo(x, waveY);
+      }
       ctx.stroke();
     }
     
-    // Draw center text with preset colors
+    // Draw center text
     ctx.fillStyle = preset.color.primary;
     ctx.font = '24px Arial';
     ctx.textAlign = 'center';
@@ -157,52 +152,87 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawNeonBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
-    const barWidth = width / dataArray.length * 2.5;
-    let x = 0;
+  const drawFlowingWaveforms = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
+    const numWaves = 8;
+    const centerY = height / 2;
+    const maxAmplitude = height * 0.3;
+    
+    // Store current frame data
+    const currentFrame = Array.from(dataArray.slice(0, 64));
+    waveHistoryRef.current.unshift(currentFrame);
+    
+    // Keep only last 100 frames for trailing effect
+    if (waveHistoryRef.current.length > 100) {
+      waveHistoryRef.current.pop();
+    }
 
-    for (let i = 0; i < dataArray.length; i++) {
-      const barHeight = (dataArray[i] * sensitivity * height) / 256;
-      const beatBoost = beatData.isBeat ? 1.2 : 1;
-      const finalHeight = barHeight * beatBoost;
+    // Draw multiple flowing waveforms with trailing effect
+    for (let waveIndex = 0; waveIndex < numWaves; waveIndex++) {
+      const hueShift = preset.id === 'neon-rainbow' ? (waveIndex * 45) : 0;
       
-      // Create neon rainbow effect for NEON RAINBOW preset
-      if (preset.id === 'neon-rainbow') {
-        const hue = (i / dataArray.length) * 360;
-        const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
+      for (let historyIndex = 0; historyIndex < Math.min(waveHistoryRef.current.length, 50); historyIndex++) {
+        const frame = waveHistoryRef.current[historyIndex];
+        if (!frame) continue;
         
-        // Vibrant neon rainbow bars
-        gradient.addColorStop(0, `hsl(${hue}, 100%, ${intensity * 30 + 50}%)`);
-        gradient.addColorStop(0.5, `hsl(${(hue + 60) % 360}, 100%, ${intensity * 40 + 60}%)`);
-        gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 50 + 70}%)`);
-        ctx.fillStyle = gradient;
+        const alpha = Math.max(0.1, 1 - (historyIndex / 50));
+        const thickness = Math.max(1, 4 - (historyIndex / 12));
         
-        // Neon glow effect for rainbow
-        if (dataArray[i] > 100 || beatData.isBeat) {
-          ctx.shadowColor = `hsl(${hue}, 100%, 70%)`;
-          ctx.shadowBlur = beatData.isBeat ? 40 : 25;
+        ctx.lineWidth = thickness;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        // Create flowing waveform path
+        ctx.beginPath();
+        
+        const points: Array<{x: number, y: number}> = [];
+        const segmentWidth = width / frame.length;
+        
+        for (let i = 0; i < frame.length; i++) {
+          const x = i * segmentWidth + (historyIndex * 2); // Add horizontal flow
+          const amplitude = (frame[i] / 256) * maxAmplitude * sensitivity;
+          const beatBoost = beatData.isBeat ? 1.3 : 1;
+          const finalAmplitude = amplitude * beatBoost;
+          
+          // Create multiple wave layers
+          const waveOffset = (waveIndex - numWaves/2) * (finalAmplitude * 0.3);
+          const timeOffset = Date.now() * 0.001 + waveIndex * 0.5;
+          const flowY = centerY + waveOffset + Math.sin((i * 0.1) + timeOffset) * (finalAmplitude * 0.5);
+          
+          points.push({ x, y: flowY });
         }
-      } else {
-        // Standard neon bar effect for other presets
-        const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
-        gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
-        gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
-        gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
-        ctx.fillStyle = gradient;
         
-        // Standard neon glow
-        if (dataArray[i] > 150 || beatData.isBeat) {
-          ctx.shadowColor = preset.color.glow;
-          ctx.shadowBlur = beatData.isBeat ? 35 : 25;
+        // Draw smooth curved line through points
+        if (points.length > 2) {
+          ctx.moveTo(points[0].x, points[0].y);
+          
+          for (let i = 1; i < points.length - 1; i++) {
+            const cp1x = (points[i-1].x + points[i].x) / 2;
+            const cp1y = (points[i-1].y + points[i].y) / 2;
+            const cp2x = (points[i].x + points[i+1].x) / 2;
+            const cp2y = (points[i].y + points[i+1].y) / 2;
+            
+            ctx.quadraticCurveTo(points[i].x, points[i].y, cp2x, cp2y);
+          }
         }
+        
+        // Set stroke color with rainbow effect
+        if (preset.id === 'neon-rainbow') {
+          const hue = (hueShift + (historyIndex * 2)) % 360;
+          ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
+          ctx.shadowColor = `hsla(${hue}, 100%, 70%, ${alpha * 0.5})`;
+        } else {
+          const gradient = ctx.createLinearGradient(0, 0, width, 0);
+          gradient.addColorStop(0, `${preset.color.primary}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`);
+          gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`);
+          gradient.addColorStop(1, `${preset.color.primary}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`);
+          ctx.strokeStyle = gradient;
+          ctx.shadowColor = `${preset.color.glow}${Math.floor(alpha * 128).toString(16).padStart(2, '0')}`;
+        }
+        
+        ctx.shadowBlur = beatData.isBeat ? 20 : 10;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
       }
-      
-      ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
-      ctx.shadowBlur = 0;
-      
-      x += barWidth;
     }
   };
 
@@ -233,7 +263,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
             isFullscreen ? 'h-screen' : 'h-96'
           }`}
           style={{ 
-            imageRendering: 'pixelated',
+            imageRendering: 'auto',
             boxShadow: `0 0 30px ${preset.color.glow}20`
           }}
         />
