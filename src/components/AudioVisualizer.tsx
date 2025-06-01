@@ -153,73 +153,79 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       waveData.push(amplitude);
     }
     
-    // Store wave history for trailing effect
+    // Enhanced trailing effect - increased from 20 to 30 history frames
     waveHistoryRef.current.push([...waveData]);
-    if (waveHistoryRef.current.length > 20) {
+    if (waveHistoryRef.current.length > 30) {
       waveHistoryRef.current.shift();
     }
     
-    // Draw trailing waves
+    // Draw trailing waves with enhanced effect
     waveHistoryRef.current.forEach((wave, historyIndex) => {
       const alpha = (historyIndex + 1) / waveHistoryRef.current.length;
-      drawWaveLayer(ctx, wave, width, centerY, alpha * 0.3, '#ff0080', historyIndex * 2);
+      drawWaveLayer(ctx, wave, width, centerY, alpha * 0.45, '#ff0080', historyIndex * 3);
     });
     
-    // Draw main waveform with multiple layers
+    // Enhanced main waveform with more layers (increased from 3 to 5 layers)
     drawWaveLayer(ctx, waveData, width, centerY, 1.0, '#ff0080', 0);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.8, '#00ffff', 5);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.6, '#ffff00', -3);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.9, '#00ffff', 3);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.8, '#ffff00', -2);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.7, '#ff4080', 5);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.6, '#80ff80', -4);
     
-    // Add particles
+    // Enhanced particles - increased count by 50%
     drawParticles(ctx, waveData, width, centerY, beatData);
   };
   
   const drawWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, color: string, offset: number) => {
     ctx.beginPath();
     ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 3; // Increased from 2 to 3 for more prominent lines
     ctx.shadowColor = color;
-    ctx.shadowBlur = alpha * 20;
+    ctx.shadowBlur = alpha * 30; // Increased from 20 to 30 for stronger glow
     
     const step = width / waveData.length;
     
     for (let i = 0; i < waveData.length; i++) {
       const x = i * step;
-      const amplitude = waveData[i] * 150;
+      const amplitude = waveData[i] * 225; // Increased from 150 to 225 for more dramatic curves
       
-      // Create flowing wave effect
-      const time = Date.now() * 0.001;
-      const flowOffset = Math.sin(time + i * 0.1) * 10;
-      const y1 = centerY - amplitude + offset + flowOffset;
-      const y2 = centerY + amplitude + offset + flowOffset;
+      // Enhanced flowing wave effect with more complex curves
+      const time = Date.now() * 0.0015; // Slightly faster animation
+      const flowOffset = Math.sin(time + i * 0.15) * 15; // Increased curve intensity
+      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 8; // Added secondary curve
+      const y1 = centerY - amplitude + offset + flowOffset + secondaryFlow;
+      const y2 = centerY + amplitude + offset + flowOffset + secondaryFlow;
       
       if (i === 0) {
         ctx.moveTo(x, y1);
       } else {
-        // Create smooth curves
+        // Enhanced smooth curves with more control points
         const prevX = (i - 1) * step;
-        const cpX = (prevX + x) / 2;
-        ctx.quadraticCurveTo(cpX, y1, x, y1);
+        const cpX1 = prevX + step * 0.3;
+        const cpX2 = prevX + step * 0.7;
+        ctx.bezierCurveTo(cpX1, y1, cpX2, y1, x, y1);
       }
     }
     
     ctx.stroke();
     
-    // Draw mirrored wave
+    // Draw enhanced mirrored wave
     ctx.beginPath();
     for (let i = 0; i < waveData.length; i++) {
       const x = i * step;
-      const amplitude = waveData[i] * 150;
-      const time = Date.now() * 0.001;
-      const flowOffset = Math.sin(time + i * 0.1) * 10;
-      const y = centerY + amplitude + offset + flowOffset;
+      const amplitude = waveData[i] * 225;
+      const time = Date.now() * 0.0015;
+      const flowOffset = Math.sin(time + i * 0.15) * 15;
+      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 8;
+      const y = centerY + amplitude + offset + flowOffset + secondaryFlow;
       
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
         const prevX = (i - 1) * step;
-        const cpX = (prevX + x) / 2;
-        ctx.quadraticCurveTo(cpX, y, x, y);
+        const cpX1 = prevX + step * 0.3;
+        const cpX2 = prevX + step * 0.7;
+        ctx.bezierCurveTo(cpX1, y, cpX2, y, x, y);
       }
     }
     ctx.stroke();
@@ -227,24 +233,25 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   };
   
   const drawParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
-    const particleCount = beatData.isBeat ? 50 : 20;
+    // Enhanced particle count - increased by 50%
+    const particleCount = beatData.isBeat ? 75 : 30; // Increased from 50/20 to 75/30
     
     for (let i = 0; i < particleCount; i++) {
       const x = Math.random() * width;
       const dataIndex = Math.floor((x / width) * waveData.length);
       const amplitude = waveData[dataIndex] || 0;
       
-      if (amplitude > 0.1) {
-        const y = centerY + (Math.random() - 0.5) * amplitude * 300;
-        const size = Math.random() * 3 + 1;
-        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000'];
+      if (amplitude > 0.08) { // Slightly lower threshold for more particles
+        const y = centerY + (Math.random() - 0.5) * amplitude * 450; // Increased spread
+        const size = Math.random() * 4.5 + 1.5; // Slightly larger particles
+        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000', '#80ff80', '#ff8040']; // Added more colors
         const color = colors[Math.floor(Math.random() * colors.length)];
         
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = `${color}${Math.floor(Math.random() * 128 + 127).toString(16)}`;
         ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
+        ctx.shadowBlur = 15; // Increased from 10 to 15 for stronger glow
         ctx.fill();
         ctx.shadowBlur = 0;
       }
