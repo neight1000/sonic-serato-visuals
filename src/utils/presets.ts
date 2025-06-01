@@ -16,14 +16,14 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
   {
     id: 'neon-nights',
     name: 'NEON NIGHTS',
-    description: 'Rainbow spectrum flowing waveform visualization',
+    description: 'Classic synthwave neon pink and cyan bars',
     bands: [0.8, 0.9, 0.7, 0.6, 0.8, 0.9, 0.7, 0.5],
     color: {
       primary: '#ff0080',
       secondary: '#00ffff',
       glow: '#ff0080'
     },
-    visualMode: 'wave'
+    visualMode: 'bars'
   },
   {
     id: 'electric-dreams',
