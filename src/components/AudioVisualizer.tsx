@@ -93,7 +93,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
       // Draw based on preset
       if (preset.id === 'neon-nights') {
-        drawNeonWaveform(ctx, dataArray, canvas.width, canvas.height, sensitivity, currentBeatData);
+        drawRainbowWaveform(ctx, dataArray, canvas.width, canvas.height, sensitivity, currentBeatData);
       } else if (preset.id === 'electric-dreams') {
         drawElectricDreamsSpectrum(ctx, dataArray, canvas.width, canvas.height, sensitivity);
       } else {
@@ -147,7 +147,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawNeonWaveform = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, beatData: any) => {
+  const drawRainbowWaveform = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, beatData: any) => {
     const centerY = height / 2;
     const samples = 128;
     
@@ -170,28 +170,27 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       waveHistoryRef.current.shift();
     }
     
-    // Draw trailing waves with enhanced effect
+    // Draw trailing waves with rainbow spectrum
     waveHistoryRef.current.forEach((wave, historyIndex) => {
       const alpha = (historyIndex + 1) / waveHistoryRef.current.length;
-      drawWaveLayer(ctx, wave, width, centerY, alpha * 0.45, '#ff0080', historyIndex * 3);
+      const hueOffset = historyIndex * 12; // Different hue for each trail
+      drawRainbowWaveLayer(ctx, wave, width, centerY, alpha * 0.45, hueOffset, historyIndex * 3);
     });
     
-    // Enhanced main waveform with 5 layers
-    drawWaveLayer(ctx, waveData, width, centerY, 1.0, '#ff0080', 0);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.9, '#00ffff', 3);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.8, '#ffff00', -2);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.7, '#ff4080', 5);
-    drawWaveLayer(ctx, waveData, width, centerY, 0.6, '#80ff80', -4);
+    // Enhanced main waveform with 5 rainbow layers
+    drawRainbowWaveLayer(ctx, waveData, width, centerY, 1.0, 0, 0);
+    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.9, 60, 3);
+    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.8, 120, -2);
+    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.7, 180, 5);
+    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.6, 240, -4);
     
-    // Enhanced particles
-    drawParticles(ctx, waveData, width, centerY, beatData);
+    // Enhanced rainbow particles
+    drawRainbowParticles(ctx, waveData, width, centerY, beatData);
   };
   
-  const drawWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, color: string, offset: number) => {
+  const drawRainbowWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, hueOffset: number, offset: number) => {
     ctx.beginPath();
-    ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
     ctx.lineWidth = 3;
-    ctx.shadowColor = color;
     ctx.shadowBlur = alpha * 30;
     
     const step = width / waveData.length;
@@ -200,8 +199,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const x = i * step;
       const amplitude = waveData[i] * 300; // Increased from 225 to 300 for more dramatic response
       
+      // Rainbow color based on position and time
+      const baseHue = (i / waveData.length) * 360 + hueOffset;
+      const time = Date.now() * 0.002;
+      const animatedHue = (baseHue + time * 30) % 360;
+      const color = `hsl(${animatedHue}, 100%, 60%)`;
+      
+      ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
+      ctx.shadowColor = color;
+      
       // Enhanced flowing wave effect with more complex curves
-      const time = Date.now() * 0.002; // Slightly faster animation
       const flowOffset = Math.sin(time + i * 0.15) * 20; // Increased curve intensity
       const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 12; // Increased secondary curve
       const y1 = centerY - amplitude + offset + flowOffset + secondaryFlow;
@@ -226,6 +233,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const x = i * step;
       const amplitude = waveData[i] * 300;
       const time = Date.now() * 0.002;
+      const baseHue = (i / waveData.length) * 360 + hueOffset;
+      const animatedHue = (baseHue + time * 30) % 360;
+      const color = `hsl(${animatedHue}, 100%, 60%)`;
+      
+      ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
+      ctx.shadowColor = color;
+      
       const flowOffset = Math.sin(time + i * 0.15) * 20;
       const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 12;
       const y = centerY + amplitude + offset + flowOffset + secondaryFlow;
@@ -243,7 +257,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
   
-  const drawParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
+  const drawRainbowParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
     // Enhanced particle count
     const particleCount = beatData.isBeat ? 75 : 30;
     
@@ -255,8 +269,10 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       if (amplitude > 0.05) { // Lower threshold for more responsive particles
         const y = centerY + (Math.random() - 0.5) * amplitude * 600; // Increased spread for better visibility
         const size = Math.random() * 4.5 + 1.5;
-        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000', '#80ff80', '#ff8040'];
-        const color = colors[Math.floor(Math.random() * colors.length)];
+        
+        // Rainbow colors based on position
+        const hue = (x / width) * 360 + Date.now() * 0.1;
+        const color = `hsl(${hue % 360}, 100%, 70%)`;
         
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
