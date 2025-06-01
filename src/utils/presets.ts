@@ -16,7 +16,7 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
   {
     id: 'neon-nights',
     name: 'NEON NIGHTS',
-    description: 'Classic synthwave neon pink and cyan',
+    description: 'Classic synthwave neon pink and cyan bars',
     bands: [0.8, 0.9, 0.7, 0.6, 0.8, 0.9, 0.7, 0.5],
     color: {
       primary: '#ff0080',
@@ -28,26 +28,26 @@ export const EQUALIZER_PRESETS: EqualizerPreset[] = [
   {
     id: 'electric-dreams',
     name: 'ELECTRIC DREAMS',
-    description: 'Neon blue electric energy waves',
+    description: 'Electric blue neon bar spectrum',
     bands: [0.6, 0.7, 0.8, 0.9, 0.8, 0.7, 0.6, 0.5],
     color: {
       primary: '#0080ff',
       secondary: '#80e0ff',
       glow: '#0080ff'
     },
-    visualMode: 'wave'
+    visualMode: 'bars'
   },
   {
-    id: 'rainbow-spectrum',
-    name: 'RAINBOW SPECTRUM',
-    description: 'Vintage 90s neon rainbow spectrum',
+    id: 'neon-rainbow',
+    name: 'NEON RAINBOW',
+    description: 'Vibrant neon rainbow bar equalizer',
     bands: [0.7, 0.9, 0.6, 0.8, 0.9, 0.7, 0.8, 0.6],
     color: {
       primary: '#ff4000',
       secondary: '#ff8000',
       glow: '#ffff00'
     },
-    visualMode: 'circular'
+    visualMode: 'bars'
   }
 ];
 

@@ -101,13 +101,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
       switch (mode) {
         case 'bars':
-          drawBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
         case 'wave':
-          drawWave(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
         case 'circular':
-          drawCircular(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
           break;
       }
 
@@ -157,7 +157,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
+  const drawNeonBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
     const barWidth = width / dataArray.length * 2.5;
     let x = 0;
 
@@ -166,150 +166,44 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const beatBoost = beatData.isBeat ? 1.2 : 1;
       const finalHeight = barHeight * beatBoost;
       
-      // Enhanced rainbow spectrum effect with neon glow
-      if (preset.id === 'rainbow-spectrum') {
+      // Create neon rainbow effect for NEON RAINBOW preset
+      if (preset.id === 'neon-rainbow') {
         const hue = (i / dataArray.length) * 360;
         const intensity = dataArray[i] / 256;
         const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
         
-        // Create vibrant neon rainbow gradient
+        // Vibrant neon rainbow bars
         gradient.addColorStop(0, `hsl(${hue}, 100%, ${intensity * 30 + 50}%)`);
-        gradient.addColorStop(0.3, `hsl(${(hue + 40) % 360}, 100%, ${intensity * 40 + 60}%)`);
-        gradient.addColorStop(0.7, `hsl(${(hue + 80) % 360}, 100%, ${intensity * 50 + 70}%)`);
-        gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 60 + 80}%)`);
+        gradient.addColorStop(0.5, `hsl(${(hue + 60) % 360}, 100%, ${intensity * 40 + 60}%)`);
+        gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 50 + 70}%)`);
         ctx.fillStyle = gradient;
+        
+        // Neon glow effect for rainbow
+        if (dataArray[i] > 100 || beatData.isBeat) {
+          ctx.shadowColor = `hsl(${hue}, 100%, 70%)`;
+          ctx.shadowBlur = beatData.isBeat ? 40 : 25;
+        }
       } else {
-        // Enhanced neon effect for other presets
+        // Standard neon bar effect for other presets
         const intensity = dataArray[i] / 256;
         const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
         gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
         gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
         gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
         ctx.fillStyle = gradient;
+        
+        // Standard neon glow
+        if (dataArray[i] > 150 || beatData.isBeat) {
+          ctx.shadowColor = preset.color.glow;
+          ctx.shadowBlur = beatData.isBeat ? 35 : 25;
+        }
       }
       
       ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
-      
-      // Enhanced neon glow effect
-      if (dataArray[i] > 150 || beatData.isBeat) {
-        const glowColor = preset.id === 'rainbow-spectrum' 
-          ? `hsl(${(i / dataArray.length) * 360}, 100%, 70%)` 
-          : preset.color.glow;
-        
-        ctx.shadowColor = glowColor;
-        ctx.shadowBlur = beatData.isBeat ? 35 : 25;
-        ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
-        ctx.shadowBlur = 0;
-      }
+      ctx.shadowBlur = 0;
       
       x += barWidth;
     }
-  };
-
-  const drawWave = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
-    const lineWidth = beatData.isBeat ? 6 : 4;
-    ctx.lineWidth = lineWidth;
-    
-    // Enhanced rainbow effect for wave mode
-    if (preset.id === 'rainbow-spectrum') {
-      const gradient = ctx.createLinearGradient(0, 0, width, 0);
-      for (let i = 0; i < 8; i++) {
-        gradient.addColorStop(i / 7, `hsl(${i * 51.4}, 100%, 70%)`);
-      }
-      ctx.strokeStyle = gradient;
-    } else {
-      ctx.strokeStyle = preset.color.primary;
-    }
-    
-    ctx.beginPath();
-
-    const sliceWidth = width / dataArray.length;
-    let x = 0;
-
-    for (let i = 0; i < dataArray.length; i++) {
-      const v = (dataArray[i] * sensitivity) / 128.0;
-      const beatBoost = beatData.isBeat ? 1.3 : 1;
-      const y = (v * height * beatBoost) / 2;
-
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-
-      x += sliceWidth;
-    }
-
-    ctx.stroke();
-    
-    // Enhanced neon glow effect
-    ctx.shadowColor = preset.id === 'rainbow-spectrum' ? '#ff4000' : preset.color.glow;
-    ctx.shadowBlur = beatData.isBeat ? 30 : 20;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  };
-
-  const drawCircular = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
-    const centerX = width / 2;
-    const centerY = height / 2;
-    const radius = Math.min(width, height) / 4;
-
-    for (let i = 0; i < dataArray.length; i++) {
-      const angle = (i / dataArray.length) * Math.PI * 2;
-      const barHeight = (dataArray[i] * sensitivity) / 2;
-      const beatBoost = beatData.isBeat ? 1.4 : 1;
-      const finalHeight = barHeight * beatBoost;
-      
-      const x1 = centerX + Math.cos(angle) * radius;
-      const y1 = centerY + Math.sin(angle) * radius;
-      const x2 = centerX + Math.cos(angle) * (radius + finalHeight);
-      const y2 = centerY + Math.sin(angle) * (radius + finalHeight);
-
-      // Enhanced rainbow spectrum effect for circular mode
-      if (preset.id === 'rainbow-spectrum') {
-        const hue = (i / dataArray.length) * 360;
-        const intensity = dataArray[i] / 256;
-        ctx.strokeStyle = `hsl(${hue}, 100%, ${intensity * 30 + 50}%)`;
-        
-        // Add glow for high intensity
-        if (intensity > 0.6) {
-          ctx.shadowColor = `hsl(${hue}, 100%, 80%)`;
-          ctx.shadowBlur = 15;
-        }
-      } else {
-        const intensity = dataArray[i] / 256;
-        ctx.strokeStyle = `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`;
-      }
-      
-      ctx.lineWidth = beatData.isBeat ? 4 : 3;
-      
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-    }
-    
-    // Enhanced center circle with rainbow effect
-    ctx.beginPath();
-    const centerRadius = radius * (beatData.isBeat ? 0.2 : 0.12);
-    ctx.arc(centerX, centerY, centerRadius, 0, Math.PI * 2);
-    
-    if (preset.id === 'rainbow-spectrum') {
-      const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, centerRadius);
-      gradient.addColorStop(0, '#ff0080');
-      gradient.addColorStop(0.5, '#ff4000');
-      gradient.addColorStop(1, '#ffff00');
-      ctx.fillStyle = gradient;
-      ctx.shadowColor = '#ff4000';
-    } else {
-      ctx.fillStyle = preset.color.primary;
-      ctx.shadowColor = preset.color.glow;
-    }
-    
-    ctx.shadowBlur = beatData.isBeat ? 25 : 15;
-    ctx.fill();
-    ctx.shadowBlur = 0;
   };
 
   return (
