@@ -123,10 +123,9 @@ export const MusicEqualizer = () => {
           <h1 
             className="text-4xl font-bold transition-all duration-500"
             style={{
-              background: `linear-gradient(45deg, ${currentPreset.color.primary}, ${currentPreset.color.secondary})`,
+              backgroundImage: `linear-gradient(45deg, ${currentPreset.color.primary}, ${currentPreset.color.secondary})`,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
-              backgroundClip: 'text',
               textShadow: `0 0 20px ${currentPreset.color.glow}40`
             }}
           >
