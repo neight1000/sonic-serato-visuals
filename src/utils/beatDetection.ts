@@ -4,10 +4,10 @@ export class BeatDetector {
   private bufferLength: number;
   private dataArray: Uint8Array;
   private sampleRate: number;
-  private beatThreshold: number = 1.2; // Reduced from 1.3 for more sensitive beat detection
+  private beatThreshold: number = 1.15; // Reduced for more responsive but not oversensitive detection
   private lastBeatTime: number = 0;
   private energyHistory: number[] = [];
-  private readonly historySize = 30; // Reduced from 43 for more responsive average
+  private readonly historySize = 20; // Reduced for faster response
 
   constructor(analyser: AnalyserNode) {
     this.analyser = analyser;
@@ -19,9 +19,9 @@ export class BeatDetector {
   detectBeat(): { isBeat: boolean; energy: number; bassEnergy: number; trebleEnergy: number } {
     this.analyser.getByteFrequencyData(this.dataArray);
     
-    // Calculate energy in different frequency ranges with better scaling
-    const bassRange = Math.floor(this.bufferLength * 0.15); // Slightly larger bass range
-    const trebleStart = Math.floor(this.bufferLength * 0.5); // Lower treble start for more coverage
+    // Optimized energy calculation
+    const bassRange = Math.floor(this.bufferLength * 0.1);
+    const trebleStart = Math.floor(this.bufferLength * 0.6);
     
     let totalEnergy = 0;
     let bassEnergy = 0;
@@ -29,14 +29,14 @@ export class BeatDetector {
     
     for (let i = 0; i < this.bufferLength; i++) {
       const value = this.dataArray[i] / 255;
-      // Use logarithmic scaling for better energy detection
-      const logValue = Math.log(value * 9 + 1) / Math.log(10);
-      totalEnergy += logValue * logValue;
+      // Simplified energy calculation for better performance
+      const energyValue = value * value;
+      totalEnergy += energyValue;
       
       if (i < bassRange) {
-        bassEnergy += logValue * logValue;
+        bassEnergy += energyValue;
       } else if (i > trebleStart) {
-        trebleEnergy += logValue * logValue;
+        trebleEnergy += energyValue;
       }
     }
     
@@ -50,20 +50,13 @@ export class BeatDetector {
       this.energyHistory.shift();
     }
     
-    // Calculate average energy with weighted recent values
-    let weightedSum = 0;
-    let weightSum = 0;
-    for (let i = 0; i < this.energyHistory.length; i++) {
-      const weight = (i + 1) / this.energyHistory.length; // More weight to recent values
-      weightedSum += this.energyHistory[i] * weight;
-      weightSum += weight;
-    }
-    const averageEnergy = weightedSum / weightSum;
+    // Simple average calculation for better performance
+    const averageEnergy = this.energyHistory.reduce((sum, energy) => sum + energy, 0) / this.energyHistory.length;
     
-    // Enhanced beat detection
+    // Optimized beat detection
     const now = Date.now();
     const timeSinceLastBeat = now - this.lastBeatTime;
-    const isBeat = totalEnergy > (averageEnergy * this.beatThreshold) && timeSinceLastBeat > 250; // Reduced cooldown
+    const isBeat = totalEnergy > (averageEnergy * this.beatThreshold) && timeSinceLastBeat > 200;
     
     if (isBeat) {
       this.lastBeatTime = now;
