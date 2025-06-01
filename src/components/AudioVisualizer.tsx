@@ -27,6 +27,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
+  const waveHistoryRef = useRef<number[][]>([]);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -84,7 +85,9 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw based on preset
-      if (preset.id === 'electric-dreams') {
+      if (preset.id === 'neon-nights') {
+        drawNeonWaveform(ctx, dataArray, canvas.width, canvas.height, sensitivity, currentBeatData);
+      } else if (preset.id === 'electric-dreams') {
         drawElectricDreamsSpectrum(ctx, dataArray, canvas.width, canvas.height, sensitivity);
       } else {
         // Keep original neon bars for other presets
@@ -135,6 +138,117 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 10;
     ctx.fillText('READY TO VISUALIZE', width / 2, height / 2);
     ctx.shadowBlur = 0;
+  };
+
+  const drawNeonWaveform = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, beatData: any) => {
+    const centerY = height / 2;
+    const samples = 128;
+    
+    // Create waveform data
+    const waveData: number[] = [];
+    for (let i = 0; i < samples; i++) {
+      const dataIndex = Math.floor((i / samples) * dataArray.length);
+      const value = dataArray[dataIndex];
+      const amplitude = (value * sensitivity) / 256;
+      waveData.push(amplitude);
+    }
+    
+    // Store wave history for trailing effect
+    waveHistoryRef.current.push([...waveData]);
+    if (waveHistoryRef.current.length > 20) {
+      waveHistoryRef.current.shift();
+    }
+    
+    // Draw trailing waves
+    waveHistoryRef.current.forEach((wave, historyIndex) => {
+      const alpha = (historyIndex + 1) / waveHistoryRef.current.length;
+      drawWaveLayer(ctx, wave, width, centerY, alpha * 0.3, '#ff0080', historyIndex * 2);
+    });
+    
+    // Draw main waveform with multiple layers
+    drawWaveLayer(ctx, waveData, width, centerY, 1.0, '#ff0080', 0);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.8, '#00ffff', 5);
+    drawWaveLayer(ctx, waveData, width, centerY, 0.6, '#ffff00', -3);
+    
+    // Add particles
+    drawParticles(ctx, waveData, width, centerY, beatData);
+  };
+  
+  const drawWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, color: string, offset: number) => {
+    ctx.beginPath();
+    ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = alpha * 20;
+    
+    const step = width / waveData.length;
+    
+    for (let i = 0; i < waveData.length; i++) {
+      const x = i * step;
+      const amplitude = waveData[i] * 150;
+      
+      // Create flowing wave effect
+      const time = Date.now() * 0.001;
+      const flowOffset = Math.sin(time + i * 0.1) * 10;
+      const y1 = centerY - amplitude + offset + flowOffset;
+      const y2 = centerY + amplitude + offset + flowOffset;
+      
+      if (i === 0) {
+        ctx.moveTo(x, y1);
+      } else {
+        // Create smooth curves
+        const prevX = (i - 1) * step;
+        const cpX = (prevX + x) / 2;
+        ctx.quadraticCurveTo(cpX, y1, x, y1);
+      }
+    }
+    
+    ctx.stroke();
+    
+    // Draw mirrored wave
+    ctx.beginPath();
+    for (let i = 0; i < waveData.length; i++) {
+      const x = i * step;
+      const amplitude = waveData[i] * 150;
+      const time = Date.now() * 0.001;
+      const flowOffset = Math.sin(time + i * 0.1) * 10;
+      const y = centerY + amplitude + offset + flowOffset;
+      
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        const prevX = (i - 1) * step;
+        const cpX = (prevX + x) / 2;
+        ctx.quadraticCurveTo(cpX, y, x, y);
+      }
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  };
+  
+  const drawParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
+    const particleCount = beatData.isBeat ? 50 : 20;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const x = Math.random() * width;
+      const dataIndex = Math.floor((x / width) * waveData.length);
+      const amplitude = waveData[dataIndex] || 0;
+      
+      if (amplitude > 0.1) {
+        const y = centerY + (Math.random() - 0.5) * amplitude * 300;
+        const size = Math.random() * 3 + 1;
+        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000'];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        
+        ctx.beginPath();
+        ctx.arc(x, y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `${color}${Math.floor(Math.random() * 128 + 127).toString(16)}`;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+    }
   };
 
   const drawElectricDreamsSpectrum = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
