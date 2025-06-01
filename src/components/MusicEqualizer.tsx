@@ -3,19 +3,21 @@ import { AudioVisualizer } from './AudioVisualizer';
 import { PresetDisplay } from './PresetDisplay';
 import { VolumeControls } from './VolumeControls';
 import { MobileControls } from './MobileControls';
+import { AudioInputSelector } from './AudioInputSelector';
 import { Play, Pause, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { EQUALIZER_PRESETS, getNextPreset, getPreviousPreset, EqualizerPreset } from '@/utils/presets';
+import { AudioInputManager, AudioInputType } from '@/utils/audioInputManager';
 
 export const MusicEqualizer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
-  const [mediaSource, setMediaSource] = useState<MediaStreamAudioSourceNode | null>(null);
   const [sensitivity, setSensitivity] = useState(1);
   const [currentPreset, setCurrentPreset] = useState<EqualizerPreset>(EQUALIZER_PRESETS[0]);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [currentInput, setCurrentInput] = useState<AudioInputType>('microphone');
+  const audioInputManagerRef = useRef<AudioInputManager>(new AudioInputManager());
 
   // Keyboard controls for presets
   useEffect(() => {
@@ -37,47 +39,35 @@ export const MusicEqualizer = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentPreset.id]);
 
-  const initializeAudio = async () => {
+  const initializeAudio = async (inputType: AudioInputType, file?: File, streamUrl?: string) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        } 
+      const { audioContext: ctx, analyser: analyserNode } = await audioInputManagerRef.current.initializeInput({
+        type: inputType,
+        file,
+        streamUrl
       });
       
-      const context = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const analyserNode = context.createAnalyser();
-      const source = context.createMediaStreamSource(stream);
-      
-      analyserNode.fftSize = 256;
-      analyserNode.smoothingTimeConstant = 0.8;
-      source.connect(analyserNode);
-      
-      setAudioContext(context);
+      setAudioContext(ctx);
       setAnalyser(analyserNode);
-      setMediaSource(source);
       setIsPlaying(true);
       
-      toast.success("Audio input connected! Start playing music through your system.");
+      // Start playback for file/stream inputs
+      if (inputType === 'file' || inputType === 'stream') {
+        audioInputManagerRef.current.play();
+      }
+      
+      toast.success(`${inputType.charAt(0).toUpperCase() + inputType.slice(1)} input connected!`);
     } catch (error) {
-      console.error('Error accessing microphone:', error);
-      toast.error("Could not access audio input. Please check your microphone permissions.");
+      console.error('Error initializing audio:', error);
+      toast.error(`Could not access ${inputType} input. Please check your settings.`);
     }
   };
 
   const stopAudio = () => {
-    if (mediaSource) {
-      mediaSource.disconnect();
-    }
-    if (audioContext) {
-      audioContext.close();
-    }
+    audioInputManagerRef.current.cleanup();
     setIsPlaying(false);
     setAudioContext(null);
     setAnalyser(null);
-    setMediaSource(null);
     toast.info("Audio input disconnected.");
   };
 
@@ -85,8 +75,17 @@ export const MusicEqualizer = () => {
     if (isPlaying) {
       stopAudio();
     } else {
-      initializeAudio();
+      initializeAudio(currentInput);
     }
+  };
+
+  const handleInputChange = (type: AudioInputType, file?: File, streamUrl?: string) => {
+    setCurrentInput(type);
+    if (isPlaying) {
+      stopAudio();
+    }
+    // Auto-start with new input
+    setTimeout(() => initializeAudio(type, file, streamUrl), 100);
   };
 
   const handlePresetChange = (direction: 'next' | 'prev') => {
@@ -159,6 +158,15 @@ export const MusicEqualizer = () => {
             )}
           </Button>
         </div>
+      </div>
+
+      {/* Audio Input Selector */}
+      <div className="mb-6">
+        <AudioInputSelector
+          currentInput={currentInput}
+          onInputChange={handleInputChange}
+          isPlaying={isPlaying}
+        />
       </div>
 
       {/* Main Visualizer */}

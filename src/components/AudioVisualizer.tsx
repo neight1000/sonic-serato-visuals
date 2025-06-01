@@ -5,11 +5,13 @@ import { Maximize2, Minimize2 } from 'lucide-react';
 import { EqualizerPreset } from '@/utils/presets';
 import { BeatDetector } from '@/utils/beatDetection';
 import { ParticleSystem } from './ParticleSystem';
+import { EnhancedAudioAnalyzer, FrequencyBands } from '@/utils/audioAnalyzer';
+import { VisualizationRenderers } from '@/utils/visualizationRenderers';
 
 interface AudioVisualizerProps {
   analyser: AnalyserNode | null;
   isPlaying: boolean;
-  mode: 'bars' | 'wave' | 'circular';
+  mode: 'bars' | 'wave' | 'circular' | '3d';
   sensitivity: number;
   preset: EqualizerPreset;
 }
@@ -25,10 +27,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number>();
   const beatDetectorRef = useRef<BeatDetector | null>(null);
+  const audioAnalyzerRef = useRef<EnhancedAudioAnalyzer | null>(null);
+  const renderersRef = useRef<VisualizationRenderers | null>(null);
+  
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
   const [beatIntensity, setBeatIntensity] = useState(0);
+  const [frequencyBands, setFrequencyBands] = useState<FrequencyBands>({
+    subBass: 0, bass: 0, lowMid: 0, highMid: 0, presence: 0, brilliance: 0
+  });
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -62,9 +70,15 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
-    // Initialize beat detector
+    // Initialize analyzers and renderers
     if (!beatDetectorRef.current) {
       beatDetectorRef.current = new BeatDetector(analyser);
+    }
+    if (!audioAnalyzerRef.current) {
+      audioAnalyzerRef.current = new EnhancedAudioAnalyzer(analyser);
+    }
+    if (!renderersRef.current) {
+      renderersRef.current = new VisualizationRenderers();
     }
 
     const draw = () => {
@@ -74,8 +88,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         return;
       }
 
-      analyser.getByteFrequencyData(dataArray);
+      const analyzer = audioAnalyzerRef.current!;
+      const renderer = renderersRef.current!;
+      
+      // Get enhanced audio data
+      const dataArray = analyzer.getFullSpectrum();
+      const waveformData = analyzer.getWaveform();
+      const bands = analyzer.getFrequencyBands();
+      
       setFrequencyData(dataArray);
+      setFrequencyBands(bands);
 
       // Beat detection
       const currentBeatData = beatDetectorRef.current!.detectBeat();
@@ -88,26 +110,40 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
         setBeatIntensity(prev => Math.max(0, prev - 0.05));
       }
 
+      // Create render context
+      const renderContext = {
+        ctx,
+        width: canvas.width,
+        height: canvas.height,
+        preset,
+        sensitivity,
+        beatData: currentBeatData
+      };
+
       // Dynamic background based on beat
-      const bgAlpha = currentBeatData.isBeat ? 0.1 : 0.2;
+      const bgAlpha = currentBeatData.isBeat ? 0.05 : 0.1;
       ctx.fillStyle = `rgba(0, 0, 0, ${bgAlpha})`;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Add beat flash effect
       if (beatIntensity > 0) {
-        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 50).toString(16).padStart(2, '0')}`;
+        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 30).toString(16).padStart(2, '0')}`;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
+      // Render based on visualization mode
       switch (mode) {
         case 'bars':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          renderer.renderBars(renderContext, dataArray);
           break;
         case 'wave':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          renderer.renderWaveform(renderContext, waveformData);
           break;
         case 'circular':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
+          renderer.renderCircular(renderContext, bands);
+          break;
+        case '3d':
+          renderer.render3D(renderContext, dataArray);
           break;
       }
 
@@ -118,6 +154,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       canvas.width = canvas.offsetWidth * window.devicePixelRatio;
       canvas.height = canvas.offsetHeight * window.devicePixelRatio;
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      
+      // Reinitialize trails for new canvas size
+      if (renderersRef.current) {
+        renderersRef.current.initializeTrails(canvas.width, canvas.height);
+      }
     };
 
     resizeCanvas();
@@ -157,55 +198,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawNeonBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
-    const barWidth = width / dataArray.length * 2.5;
-    let x = 0;
-
-    for (let i = 0; i < dataArray.length; i++) {
-      const barHeight = (dataArray[i] * sensitivity * height) / 256;
-      const beatBoost = beatData.isBeat ? 1.2 : 1;
-      const finalHeight = barHeight * beatBoost;
-      
-      // Create neon rainbow effect for NEON RAINBOW preset
-      if (preset.id === 'neon-rainbow') {
-        const hue = (i / dataArray.length) * 360;
-        const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
-        
-        // Vibrant neon rainbow bars
-        gradient.addColorStop(0, `hsl(${hue}, 100%, ${intensity * 30 + 50}%)`);
-        gradient.addColorStop(0.5, `hsl(${(hue + 60) % 360}, 100%, ${intensity * 40 + 60}%)`);
-        gradient.addColorStop(1, `hsl(${(hue + 120) % 360}, 100%, ${intensity * 50 + 70}%)`);
-        ctx.fillStyle = gradient;
-        
-        // Neon glow effect for rainbow
-        if (dataArray[i] > 100 || beatData.isBeat) {
-          ctx.shadowColor = `hsl(${hue}, 100%, 70%)`;
-          ctx.shadowBlur = beatData.isBeat ? 40 : 25;
-        }
-      } else {
-        // Standard neon bar effect for other presets
-        const intensity = dataArray[i] / 256;
-        const gradient = ctx.createLinearGradient(0, height, 0, height - finalHeight);
-        gradient.addColorStop(0, `${preset.color.primary}${Math.floor(intensity * 255).toString(16).padStart(2, '0')}`);
-        gradient.addColorStop(0.5, `${preset.color.secondary}${Math.floor(intensity * 200).toString(16).padStart(2, '0')}`);
-        gradient.addColorStop(1, `${preset.color.primary}${Math.floor(intensity * 150).toString(16).padStart(2, '0')}`);
-        ctx.fillStyle = gradient;
-        
-        // Standard neon glow
-        if (dataArray[i] > 150 || beatData.isBeat) {
-          ctx.shadowColor = preset.color.glow;
-          ctx.shadowBlur = beatData.isBeat ? 35 : 25;
-        }
-      }
-      
-      ctx.fillRect(x, height - finalHeight, barWidth - 2, finalHeight);
-      ctx.shadowBlur = 0;
-      
-      x += barWidth;
-    }
-  };
-
   return (
     <Card 
       ref={containerRef}
@@ -238,7 +230,7 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
           }}
         />
         
-        {/* Particle System */}
+        {/* Enhanced Particle System */}
         {isPlaying && (
           <ParticleSystem
             bassEnergy={beatData.bassEnergy}
@@ -249,6 +241,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
             height={canvasRef.current?.offsetHeight || 0}
           />
         )}
+        
+        {/* Frequency Band Display */}
+        <div className="absolute bottom-4 left-4 bg-black/80 rounded p-2 text-xs text-white font-mono">
+          <div>SUB: {Math.floor(frequencyBands.subBass * 100)}%</div>
+          <div>BASS: {Math.floor(frequencyBands.bass * 100)}%</div>
+          <div>MID: {Math.floor(frequencyBands.lowMid * 100)}%</div>
+          <div>HIGH: {Math.floor(frequencyBands.highMid * 100)}%</div>
+          <div>PRES: {Math.floor(frequencyBands.presence * 100)}%</div>
+          <div>BRIL: {Math.floor(frequencyBands.brilliance * 100)}%</div>
+        </div>
       </div>
     </Card>
   );
