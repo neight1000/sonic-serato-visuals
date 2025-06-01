@@ -27,7 +27,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
-  const waveHistoryRef = useRef<number[][]>([]);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -59,11 +58,11 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d')!;
     
-    // Optimized analyser settings for low latency
-    analyser.fftSize = 256; // Reduced for better performance
-    analyser.smoothingTimeConstant = 0.1; // Much lower for immediate response
-    analyser.minDecibels = -80;
-    analyser.maxDecibels = -20;
+    // Ultra-responsive settings for immediate response
+    analyser.fftSize = 512;
+    analyser.smoothingTimeConstant = 0.1;
+    analyser.minDecibels = -70;
+    analyser.maxDecibels = -10;
     
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -75,7 +74,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
     const draw = () => {
       if (!isPlaying) {
-        // Draw static visualization when not playing
         drawStaticVisualization(ctx, canvas.width, canvas.height, preset);
         return;
       }
@@ -87,17 +85,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const currentBeatData = beatDetectorRef.current!.detectBeat();
       setBeatData(currentBeatData);
 
-      // Clear canvas with black background
+      // Clear canvas
       ctx.fillStyle = 'rgba(0, 0, 0, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Draw based on preset
       if (preset.id === 'neon-nights') {
-        drawRainbowWaveform(ctx, dataArray, canvas.width, canvas.height, sensitivity, currentBeatData);
+        drawRainbowSpectrum(ctx, dataArray, canvas.width, canvas.height, sensitivity, currentBeatData);
       } else if (preset.id === 'electric-dreams') {
         drawElectricDreamsSpectrum(ctx, dataArray, canvas.width, canvas.height, sensitivity);
       } else {
-        // Keep original neon bars for other presets
         drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
       }
 
@@ -147,130 +144,103 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 0;
   };
 
-  const drawRainbowWaveform = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, beatData: any) => {
+  const drawRainbowSpectrum = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, beatData: any) => {
     const centerY = height / 2;
-    const samples = 64; // Reduced for better performance
+    const samples = Math.min(128, dataArray.length);
+    const waveWidth = width * 0.9;
+    const offsetX = width * 0.05;
     
-    // Optimized frequency processing for low latency
-    const waveData: number[] = [];
+    // Create frequency-based waveform data
+    const wavePoints: number[] = [];
     for (let i = 0; i < samples; i++) {
-      const dataIndex = Math.floor((i / samples) * dataArray.length);
-      const value = dataArray[dataIndex];
-      
-      // Simplified amplitude calculation for better performance
-      const normalizedValue = value / 255;
-      const amplitude = normalizedValue * sensitivity * 0.8; // Reduced sensitivity multiplier
-      waveData.push(amplitude);
+      const freq = dataArray[i] / 255;
+      const amplitude = freq * sensitivity * 0.4;
+      wavePoints.push(amplitude);
     }
     
-    // Reduced trailing effect for better performance - 15 history frames
-    waveHistoryRef.current.push([...waveData]);
-    if (waveHistoryRef.current.length > 15) {
-      waveHistoryRef.current.shift();
+    // Draw multiple rainbow spectrum layers
+    drawSpectrumLayer(ctx, wavePoints, offsetX, centerY, waveWidth, 1.0, 0, 4);
+    drawSpectrumLayer(ctx, wavePoints, offsetX, centerY, waveWidth, 0.7, 10, 3);
+    drawSpectrumLayer(ctx, wavePoints, offsetX, centerY, waveWidth, 0.5, -10, 2);
+    
+    // Add particles for beat enhancement
+    if (beatData.isBeat) {
+      drawSpectrumParticles(ctx, wavePoints, offsetX, centerY, waveWidth);
     }
-    
-    // Draw optimized trailing waves with rainbow spectrum
-    waveHistoryRef.current.forEach((wave, historyIndex) => {
-      const alpha = (historyIndex + 1) / waveHistoryRef.current.length;
-      const hueOffset = historyIndex * 20; // Increased hue separation
-      drawRainbowWaveLayer(ctx, wave, width, centerY, alpha * 0.6, hueOffset, historyIndex * 2);
-    });
-    
-    // Main waveform with 3 rainbow layers for optimal performance
-    drawRainbowWaveLayer(ctx, waveData, width, centerY, 1.0, 0, 0);
-    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.8, 120, 3);
-    drawRainbowWaveLayer(ctx, waveData, width, centerY, 0.6, 240, -2);
-    
-    // Optimized rainbow particles
-    drawRainbowParticles(ctx, waveData, width, centerY, beatData);
   };
   
-  const drawRainbowWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, hueOffset: number, offset: number) => {
+  const drawSpectrumLayer = (ctx: CanvasRenderingContext2D, wavePoints: number[], offsetX: number, centerY: number, waveWidth: number, alpha: number, yOffset: number, lineWidth: number) => {
+    const stepX = waveWidth / wavePoints.length;
+    
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    // Draw top wave
     ctx.beginPath();
-    ctx.lineWidth = 2.5;
-    ctx.shadowBlur = alpha * 20;
-    
-    const step = width / waveData.length;
-    
-    for (let i = 0; i < waveData.length; i++) {
-      const x = i * step;
-      const amplitude = waveData[i] * 250; // Balanced amplitude for smooth response
+    for (let i = 0; i < wavePoints.length; i++) {
+      const x = offsetX + i * stepX;
+      const amplitude = wavePoints[i] * 120;
+      const y = centerY - amplitude + yOffset;
       
-      // Optimized rainbow color calculation
-      const baseHue = (i / waveData.length) * 360 + hueOffset;
-      const time = Date.now() * 0.001; // Slower time for smoother animation
-      const animatedHue = (baseHue + time * 50) % 360;
-      const color = `hsl(${animatedHue}, 100%, 65%)`;
+      // Rainbow spectrum color based on position
+      const hue = (i / wavePoints.length) * 360;
+      const saturation = 100;
+      const lightness = 50 + wavePoints[i] * 30;
       
-      ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
-      ctx.shadowColor = color;
-      
-      // Simplified flowing wave effect
-      const flowOffset = Math.sin(time * 2 + i * 0.1) * 15;
-      const y1 = centerY - amplitude + offset + flowOffset;
-      const y2 = centerY + amplitude + offset + flowOffset;
-      
-      if (i === 0) {
-        ctx.moveTo(x, y1);
-      } else {
-        // Simplified smooth curves
-        const prevX = (i - 1) * step;
-        const cpX = prevX + step * 0.5;
-        ctx.quadraticCurveTo(cpX, y1, x, y1);
-      }
-    }
-    
-    ctx.stroke();
-    
-    // Draw mirrored wave
-    ctx.beginPath();
-    for (let i = 0; i < waveData.length; i++) {
-      const x = i * step;
-      const amplitude = waveData[i] * 250;
-      const time = Date.now() * 0.001;
-      const baseHue = (i / waveData.length) * 360 + hueOffset;
-      const animatedHue = (baseHue + time * 50) % 360;
-      const color = `hsl(${animatedHue}, 100%, 65%)`;
-      
-      ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
-      ctx.shadowColor = color;
-      
-      const flowOffset = Math.sin(time * 2 + i * 0.1) * 15;
-      const y = centerY + amplitude + offset + flowOffset;
+      ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+      ctx.shadowColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      ctx.shadowBlur = 15 * alpha;
       
       if (i === 0) {
         ctx.moveTo(x, y);
       } else {
-        const prevX = (i - 1) * step;
-        const cpX = prevX + step * 0.5;
-        ctx.quadraticCurveTo(cpX, y, x, y);
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+    
+    // Draw bottom wave (mirrored)
+    ctx.beginPath();
+    for (let i = 0; i < wavePoints.length; i++) {
+      const x = offsetX + i * stepX;
+      const amplitude = wavePoints[i] * 120;
+      const y = centerY + amplitude - yOffset;
+      
+      const hue = (i / wavePoints.length) * 360;
+      const saturation = 100;
+      const lightness = 50 + wavePoints[i] * 30;
+      
+      ctx.strokeStyle = `hsla(${hue}, ${saturation}%, ${lightness}%, ${alpha})`;
+      ctx.shadowColor = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+      ctx.shadowBlur = 15 * alpha;
+      
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
       }
     }
     ctx.stroke();
     ctx.shadowBlur = 0;
   };
   
-  const drawRainbowParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
-    // Optimized particle count
-    const particleCount = beatData.isBeat ? 40 : 20;
+  const drawSpectrumParticles = (ctx: CanvasRenderingContext2D, wavePoints: number[], offsetX: number, centerY: number, waveWidth: number) => {
+    const stepX = waveWidth / wavePoints.length;
     
-    for (let i = 0; i < particleCount; i++) {
-      const x = Math.random() * width;
-      const dataIndex = Math.floor((x / width) * waveData.length);
-      const amplitude = waveData[dataIndex] || 0;
-      
-      if (amplitude > 0.03) {
-        const y = centerY + (Math.random() - 0.5) * amplitude * 400;
-        const size = Math.random() * 3 + 1;
+    for (let i = 0; i < wavePoints.length; i += 3) {
+      if (wavePoints[i] > 0.1) {
+        const x = offsetX + i * stepX + (Math.random() - 0.5) * 20;
+        const amplitude = wavePoints[i] * 120;
+        const y = centerY + (Math.random() - 0.5) * amplitude * 2;
         
-        // Rainbow colors based on position
-        const hue = (x / width) * 360 + Date.now() * 0.05;
-        const color = `hsl(${hue % 360}, 100%, 70%)`;
+        const hue = (i / wavePoints.length) * 360;
+        const size = 2 + wavePoints[i] * 3;
         
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fillStyle = `${color}${Math.floor(Math.random() * 100 + 155).toString(16)}`;
-        ctx.shadowColor = color;
+        ctx.fillStyle = `hsl(${hue}, 100%, 70%)`;
+        ctx.shadowColor = `hsl(${hue}, 100%, 70%)`;
         ctx.shadowBlur = 10;
         ctx.fill();
         ctx.shadowBlur = 0;
