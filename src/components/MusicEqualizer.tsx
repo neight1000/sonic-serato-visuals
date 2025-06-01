@@ -2,16 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AudioVisualizer } from './AudioVisualizer';
 import { PresetDisplay } from './PresetDisplay';
 import { VolumeControls } from './VolumeControls';
-import { VirtualAudioSelector } from './VirtualAudioSelector';
 import { MobileControls } from './MobileControls';
-import { Play, Pause, Volume2, Zap, Mic } from 'lucide-react';
+import { Play, Pause, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { EQUALIZER_PRESETS, getNextPreset, getPreviousPreset, EqualizerPreset } from '@/utils/presets';
-import { VirtualAudioRouter } from '@/utils/virtualAudioRouter';
 
 export const MusicEqualizer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -20,10 +15,7 @@ export const MusicEqualizer = () => {
   const [mediaSource, setMediaSource] = useState<MediaStreamAudioSourceNode | null>(null);
   const [sensitivity, setSensitivity] = useState(1);
   const [currentPreset, setCurrentPreset] = useState<EqualizerPreset>(EQUALIZER_PRESETS[0]);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [useVirtualAudio, setUseVirtualAudio] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const routerRef = useRef<VirtualAudioRouter>(new VirtualAudioRouter());
 
   // Keyboard controls for presets
   useEffect(() => {
@@ -45,34 +37,22 @@ export const MusicEqualizer = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [currentPreset.id]);
 
-  const initializeAudio = async (deviceId?: string) => {
+  const initializeAudio = async () => {
     try {
-      let stream: MediaStream;
-      
-      if (useVirtualAudio && deviceId) {
-        // Use virtual audio router for specific device
-        stream = await routerRef.current.connectToVirtualDevice(deviceId);
-        toast.success("Connected to virtual audio device!");
-      } else {
-        // Use default microphone input
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-            sampleRate: 44100,
-            channelCount: 2
-          } 
-        });
-        toast.success("Connected to microphone input!");
-      }
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        } 
+      });
       
       const context = new (window.AudioContext || (window as any).webkitAudioContext)();
       const analyserNode = context.createAnalyser();
       const source = context.createMediaStreamSource(stream);
       
-      analyserNode.fftSize = 512; // Increased for better frequency resolution
-      analyserNode.smoothingTimeConstant = 0.7;
+      analyserNode.fftSize = 256;
+      analyserNode.smoothingTimeConstant = 0.8;
       source.connect(analyserNode);
       
       setAudioContext(context);
@@ -80,9 +60,10 @@ export const MusicEqualizer = () => {
       setMediaSource(source);
       setIsPlaying(true);
       
+      toast.success("Audio input connected! Start playing music through your system.");
     } catch (error) {
-      console.error('Error accessing audio:', error);
-      toast.error("Could not access audio input. Check device permissions and setup.");
+      console.error('Error accessing microphone:', error);
+      toast.error("Could not access audio input. Please check your microphone permissions.");
     }
   };
 
@@ -104,16 +85,7 @@ export const MusicEqualizer = () => {
     if (isPlaying) {
       stopAudio();
     } else {
-      initializeAudio(selectedDeviceId);
-    }
-  };
-
-  const handleDeviceSelect = (deviceId: string) => {
-    setSelectedDeviceId(deviceId);
-    if (isPlaying) {
-      // Restart with new device
-      stopAudio();
-      setTimeout(() => initializeAudio(deviceId), 100);
+      initializeAudio();
     }
   };
 
@@ -160,10 +132,7 @@ export const MusicEqualizer = () => {
           >
             DJ EQUALIZER PRO
           </h1>
-          <p className="text-gray-400 mt-2 flex items-center gap-2">
-            <Zap className="w-4 h-4 text-blue-400" />
-            Professional Audio Spectrum Analyzer • Virtual Audio Ready
-          </p>
+          <p className="text-gray-400 mt-2">Professional Audio Spectrum Analyzer</p>
         </div>
         
         <div className="flex items-center gap-4">
@@ -192,54 +161,13 @@ export const MusicEqualizer = () => {
         </div>
       </div>
 
-      {/* Audio Input Type Toggle */}
-      <Card className="bg-gray-800/50 backdrop-blur-sm border-gray-700 p-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-medium text-gray-300">Input Type:</span>
-            <div className="flex items-center gap-3">
-              <Mic className={`w-4 h-4 ${!useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`} />
-              <span className={`text-sm ${!useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`}>
-                Microphone
-              </span>
-              <Switch
-                checked={useVirtualAudio}
-                onCheckedChange={setUseVirtualAudio}
-                className="data-[state=checked]:bg-blue-600"
-              />
-              <span className={`text-sm ${useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`}>
-                Virtual Audio
-              </span>
-              <Zap className={`w-4 h-4 ${useVirtualAudio ? 'text-blue-400' : 'text-gray-500'}`} />
-            </div>
-          </div>
-          
-          <Badge variant="secondary" className={`${
-            useVirtualAudio ? 'bg-blue-600/20 text-blue-300 border-blue-600/30' : 'bg-green-600/20 text-green-300 border-green-600/30'
-          }`}>
-            {useVirtualAudio ? 'Virtual Audio Mode' : 'Microphone Mode'}
-          </Badge>
-        </div>
-      </Card>
-
-      {/* Conditional Audio Input Selector */}
-      {useVirtualAudio && (
-        <div className="mb-6">
-          <VirtualAudioSelector
-            onDeviceSelect={handleDeviceSelect}
-            currentDeviceId={selectedDeviceId}
-            isConnected={isPlaying}
-          />
-        </div>
-      )}
-
       {/* Main Visualizer */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
         <div className="lg:col-span-3">
           <AudioVisualizer 
             analyser={analyser}
             isPlaying={isPlaying}
-            mode="wave"
+            mode={currentPreset.visualMode}
             sensitivity={sensitivity}
             preset={currentPreset}
           />
@@ -257,23 +185,13 @@ export const MusicEqualizer = () => {
             isPlaying ? 'bg-green-500 animate-pulse' : 'bg-red-500'
           }`}></div>
           <span className="text-sm">
-            {isPlaying ? 'LIVE AUDIO INPUT ACTIVE' : 'AUDIO INPUT DISCONNECTED'}
+            {isPlaying ? 'LIVE AUDIO INPUT' : 'AUDIO INPUT DISCONNECTED'}
           </span>
-          {useVirtualAudio && selectedDeviceId && (
-            <Badge variant="secondary" className="bg-blue-600/20 text-blue-300 border-blue-600/30">
-              Virtual Audio
-            </Badge>
-          )}
-          {!useVirtualAudio && (
-            <Badge variant="secondary" className="bg-green-600/20 text-green-300 border-green-600/30">
-              Microphone
-            </Badge>
-          )}
         </div>
         
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <Volume2 className="w-4 h-4" />
-          <span>Professional DJ Equalizer • Serato Ready</span>
+          <span>Standalone DJ Equalizer • Ready to Use</span>
         </div>
       </div>
 
