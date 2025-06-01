@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { EqualizerPreset } from '@/utils/presets';
 import { BeatDetector } from '@/utils/beatDetection';
-import { ParticleSystem } from './ParticleSystem';
 
 interface AudioVisualizerProps {
   analyser: AnalyserNode | null;
@@ -28,7 +27,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   const [frequencyData, setFrequencyData] = useState<Uint8Array>(new Uint8Array(128));
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [beatData, setBeatData] = useState({ isBeat: false, energy: 0, bassEnergy: 0, trebleEnergy: 0 });
-  const [beatIntensity, setBeatIntensity] = useState(0);
 
   // Handle fullscreen changes
   useEffect(() => {
@@ -81,34 +79,16 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       const currentBeatData = beatDetectorRef.current!.detectBeat();
       setBeatData(currentBeatData);
 
-      // Beat intensity effect
-      if (currentBeatData.isBeat) {
-        setBeatIntensity(1);
-      } else {
-        setBeatIntensity(prev => Math.max(0, prev - 0.05));
-      }
-
-      // Dynamic background based on beat
-      const bgAlpha = currentBeatData.isBeat ? 0.1 : 0.2;
-      ctx.fillStyle = `rgba(0, 0, 0, ${bgAlpha})`;
+      // Clear canvas with black background
+      ctx.fillStyle = 'rgba(0, 0, 0, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Add beat flash effect
-      if (beatIntensity > 0) {
-        ctx.fillStyle = `${preset.color.glow}${Math.floor(beatIntensity * 50).toString(16).padStart(2, '0')}`;
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-      }
-
-      switch (mode) {
-        case 'bars':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
-        case 'wave':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
-        case 'circular':
-          drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
-          break;
+      // Draw based on preset
+      if (preset.id === 'electric-dreams') {
+        drawElectricDreamsSpectrum(ctx, dataArray, canvas.width, canvas.height, sensitivity);
+      } else {
+        // Keep original neon bars for other presets
+        drawNeonBars(ctx, dataArray, canvas.width, canvas.height, sensitivity, preset, currentBeatData);
       }
 
       animationRef.current = requestAnimationFrame(draw);
@@ -155,6 +135,35 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.shadowBlur = 10;
     ctx.fillText('READY TO VISUALIZE', width / 2, height / 2);
     ctx.shadowBlur = 0;
+  };
+
+  const drawElectricDreamsSpectrum = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
+    const numBars = 64; // Number of bars to display
+    const barWidth = width / numBars;
+    const spacing = 2;
+    
+    for (let i = 0; i < numBars; i++) {
+      // Sample frequency data
+      const dataIndex = Math.floor((i / numBars) * dataArray.length);
+      const value = dataArray[dataIndex];
+      const barHeight = (value * sensitivity * height) / 256;
+      
+      const x = i * barWidth;
+      
+      // Create gradient from bottom to top
+      const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
+      
+      // Electric Dreams color scheme - blue to cyan gradient
+      const intensity = value / 256;
+      gradient.addColorStop(0, '#ff0080'); // Magenta at bottom
+      gradient.addColorStop(0.3, '#ff4000'); // Red-orange
+      gradient.addColorStop(0.5, '#ffff00'); // Yellow
+      gradient.addColorStop(0.7, '#00ff80'); // Green
+      gradient.addColorStop(1, '#00ffff'); // Cyan at top
+      
+      ctx.fillStyle = gradient;
+      ctx.fillRect(x, height - barHeight, barWidth - spacing, barHeight);
+    }
   };
 
   const drawNeonBars = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number, preset: EqualizerPreset, beatData: any) => {
@@ -237,18 +246,6 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
             boxShadow: `0 0 30px ${preset.color.glow}20`
           }}
         />
-        
-        {/* Particle System */}
-        {isPlaying && (
-          <ParticleSystem
-            bassEnergy={beatData.bassEnergy}
-            trebleEnergy={beatData.trebleEnergy}
-            isBeat={beatData.isBeat}
-            preset={preset}
-            width={canvasRef.current?.offsetWidth || 0}
-            height={canvasRef.current?.offsetHeight || 0}
-          />
-        )}
       </div>
     </Card>
   );
