@@ -58,6 +58,13 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d')!;
+    
+    // Enhanced analyser settings for better reactivity
+    analyser.fftSize = 512; // Increased from 256 for better frequency resolution
+    analyser.smoothingTimeConstant = 0.3; // Reduced from 0.8 for more responsive data
+    analyser.minDecibels = -90; // Better dynamic range
+    analyser.maxDecibels = -10;
+    
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
@@ -144,16 +151,20 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     const centerY = height / 2;
     const samples = 128;
     
-    // Create waveform data
+    // Enhanced frequency processing for better reactivity
     const waveData: number[] = [];
     for (let i = 0; i < samples; i++) {
       const dataIndex = Math.floor((i / samples) * dataArray.length);
       const value = dataArray[dataIndex];
-      const amplitude = (value * sensitivity) / 256;
+      
+      // Enhanced amplitude calculation with logarithmic scaling for better reactivity
+      const normalizedValue = value / 255;
+      const logScale = Math.log(normalizedValue * 9 + 1) / Math.log(10); // Logarithmic scaling
+      const amplitude = logScale * sensitivity * 1.5; // Increased base multiplier
       waveData.push(amplitude);
     }
     
-    // Enhanced trailing effect - increased from 20 to 30 history frames
+    // Enhanced trailing effect - 30 history frames
     waveHistoryRef.current.push([...waveData]);
     if (waveHistoryRef.current.length > 30) {
       waveHistoryRef.current.shift();
@@ -165,34 +176,34 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
       drawWaveLayer(ctx, wave, width, centerY, alpha * 0.45, '#ff0080', historyIndex * 3);
     });
     
-    // Enhanced main waveform with more layers (increased from 3 to 5 layers)
+    // Enhanced main waveform with 5 layers
     drawWaveLayer(ctx, waveData, width, centerY, 1.0, '#ff0080', 0);
     drawWaveLayer(ctx, waveData, width, centerY, 0.9, '#00ffff', 3);
     drawWaveLayer(ctx, waveData, width, centerY, 0.8, '#ffff00', -2);
     drawWaveLayer(ctx, waveData, width, centerY, 0.7, '#ff4080', 5);
     drawWaveLayer(ctx, waveData, width, centerY, 0.6, '#80ff80', -4);
     
-    // Enhanced particles - increased count by 50%
+    // Enhanced particles
     drawParticles(ctx, waveData, width, centerY, beatData);
   };
   
   const drawWaveLayer = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, alpha: number, color: string, offset: number) => {
     ctx.beginPath();
     ctx.strokeStyle = `${color}${Math.floor(alpha * 255).toString(16).padStart(2, '0')}`;
-    ctx.lineWidth = 3; // Increased from 2 to 3 for more prominent lines
+    ctx.lineWidth = 3;
     ctx.shadowColor = color;
-    ctx.shadowBlur = alpha * 30; // Increased from 20 to 30 for stronger glow
+    ctx.shadowBlur = alpha * 30;
     
     const step = width / waveData.length;
     
     for (let i = 0; i < waveData.length; i++) {
       const x = i * step;
-      const amplitude = waveData[i] * 225; // Increased from 150 to 225 for more dramatic curves
+      const amplitude = waveData[i] * 300; // Increased from 225 to 300 for more dramatic response
       
       // Enhanced flowing wave effect with more complex curves
-      const time = Date.now() * 0.0015; // Slightly faster animation
-      const flowOffset = Math.sin(time + i * 0.15) * 15; // Increased curve intensity
-      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 8; // Added secondary curve
+      const time = Date.now() * 0.002; // Slightly faster animation
+      const flowOffset = Math.sin(time + i * 0.15) * 20; // Increased curve intensity
+      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 12; // Increased secondary curve
       const y1 = centerY - amplitude + offset + flowOffset + secondaryFlow;
       const y2 = centerY + amplitude + offset + flowOffset + secondaryFlow;
       
@@ -213,10 +224,10 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
     ctx.beginPath();
     for (let i = 0; i < waveData.length; i++) {
       const x = i * step;
-      const amplitude = waveData[i] * 225;
-      const time = Date.now() * 0.0015;
-      const flowOffset = Math.sin(time + i * 0.15) * 15;
-      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 8;
+      const amplitude = waveData[i] * 300;
+      const time = Date.now() * 0.002;
+      const flowOffset = Math.sin(time + i * 0.15) * 20;
+      const secondaryFlow = Math.cos(time * 0.7 + i * 0.08) * 12;
       const y = centerY + amplitude + offset + flowOffset + secondaryFlow;
       
       if (i === 0) {
@@ -233,25 +244,25 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   };
   
   const drawParticles = (ctx: CanvasRenderingContext2D, waveData: number[], width: number, centerY: number, beatData: any) => {
-    // Enhanced particle count - increased by 50%
-    const particleCount = beatData.isBeat ? 75 : 30; // Increased from 50/20 to 75/30
+    // Enhanced particle count
+    const particleCount = beatData.isBeat ? 75 : 30;
     
     for (let i = 0; i < particleCount; i++) {
       const x = Math.random() * width;
       const dataIndex = Math.floor((x / width) * waveData.length);
       const amplitude = waveData[dataIndex] || 0;
       
-      if (amplitude > 0.08) { // Slightly lower threshold for more particles
-        const y = centerY + (Math.random() - 0.5) * amplitude * 450; // Increased spread
-        const size = Math.random() * 4.5 + 1.5; // Slightly larger particles
-        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000', '#80ff80', '#ff8040']; // Added more colors
+      if (amplitude > 0.05) { // Lower threshold for more responsive particles
+        const y = centerY + (Math.random() - 0.5) * amplitude * 600; // Increased spread for better visibility
+        const size = Math.random() * 4.5 + 1.5;
+        const colors = ['#ff0080', '#00ffff', '#ffff00', '#ff4000', '#80ff80', '#ff8040'];
         const color = colors[Math.floor(Math.random() * colors.length)];
         
         ctx.beginPath();
         ctx.arc(x, y, size, 0, Math.PI * 2);
         ctx.fillStyle = `${color}${Math.floor(Math.random() * 128 + 127).toString(16)}`;
         ctx.shadowColor = color;
-        ctx.shadowBlur = 15; // Increased from 10 to 15 for stronger glow
+        ctx.shadowBlur = 15;
         ctx.fill();
         ctx.shadowBlur = 0;
       }
@@ -259,31 +270,42 @@ export const AudioVisualizer: React.FC<AudioVisualizerProps> = ({
   };
 
   const drawElectricDreamsSpectrum = (ctx: CanvasRenderingContext2D, dataArray: Uint8Array, width: number, height: number, sensitivity: number) => {
-    const numBars = 64; // Number of bars to display
+    const numBars = 64;
     const barWidth = width / numBars;
     const spacing = 2;
     
     for (let i = 0; i < numBars; i++) {
-      // Sample frequency data
       const dataIndex = Math.floor((i / numBars) * dataArray.length);
       const value = dataArray[dataIndex];
-      const barHeight = (value * sensitivity * height) / 256;
+      
+      // Enhanced reactivity with logarithmic scaling
+      const normalizedValue = value / 255;
+      const logScale = Math.log(normalizedValue * 9 + 1) / Math.log(10);
+      const barHeight = logScale * sensitivity * height * 1.2; // Increased multiplier for better response
       
       const x = i * barWidth;
       
       // Create gradient from bottom to top
       const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight);
       
-      // Electric Dreams color scheme - blue to cyan gradient
-      const intensity = value / 256;
-      gradient.addColorStop(0, '#ff0080'); // Magenta at bottom
-      gradient.addColorStop(0.3, '#ff4000'); // Red-orange
-      gradient.addColorStop(0.5, '#ffff00'); // Yellow
-      gradient.addColorStop(0.7, '#00ff80'); // Green
-      gradient.addColorStop(1, '#00ffff'); // Cyan at top
+      // Electric Dreams color scheme with enhanced intensity
+      const intensity = Math.max(0.3, normalizedValue); // Minimum intensity for visibility
+      gradient.addColorStop(0, '#ff0080');
+      gradient.addColorStop(0.3, '#ff4000');
+      gradient.addColorStop(0.5, '#ffff00');
+      gradient.addColorStop(0.7, '#00ff80');
+      gradient.addColorStop(1, '#00ffff');
       
       ctx.fillStyle = gradient;
       ctx.fillRect(x, height - barHeight, barWidth - spacing, barHeight);
+      
+      // Add glow effect for higher values
+      if (value > 80) {
+        ctx.shadowColor = '#00ffff';
+        ctx.shadowBlur = 15;
+        ctx.fillRect(x, height - barHeight, barWidth - spacing, barHeight);
+        ctx.shadowBlur = 0;
+      }
     }
   };
 
